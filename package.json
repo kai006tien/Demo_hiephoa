@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Cổng Thông Tin Điện Tử HĐND Xã Hiệp Hòa",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "start": "node server.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }
