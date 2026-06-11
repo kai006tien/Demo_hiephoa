@@ -19,7 +19,7 @@ const Sync = {
 
     // Perform background sync and start polling
     this.backgroundSync();
-    this.startPolling(4000); // Đồng bộ nền mỗi 4 giây
+    this.startPolling(3000); // Đồng bộ nền mỗi 3 giây
   },
 
   // Check if sync is enabled (always true since MongoDB is core backend)
@@ -33,7 +33,7 @@ const Sync = {
   },
 
   // Bắt đầu đồng bộ tự động theo chu kỳ
-  startPolling(ms = 4000) {
+  startPolling(ms = 3000) {
     if (this.pollingIntervalId) clearInterval(this.pollingIntervalId);
     this.pollingIntervalId = setInterval(() => {
       this.backgroundSync(true); // silent polling
@@ -380,7 +380,7 @@ const Sync = {
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Tần suất tự động đồng bộ:</span>
-                <strong style="color: var(--color-primary, #2b5797);">4 giây / lần (Đang chạy)</strong>
+                <strong style="color: var(--color-primary, #2b5797);">3 giây / lần (Đang chạy)</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Đồng bộ lần cuối:</span>
