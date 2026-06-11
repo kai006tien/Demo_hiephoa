@@ -1,0 +1,9 @@
+{
+  "name": "demo-hiephoa-admin",
+  "version": "1.0.0",
+  "description": "Cổng Thông Tin Điện Tử HĐND Xã Hiệp Hòa",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {}
+}
