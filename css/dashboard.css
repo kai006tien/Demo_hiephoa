@@ -113,23 +113,16 @@
 .welcome-banner::before {
   content: '';
   position: absolute;
-  top: -50%;
-  right: -10%;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.welcome-banner::after {
-  content: '';
-  position: absolute;
-  bottom: -30%;
-  right: 10%;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.03);
+  top: -60px;
+  right: -60px;
+  width: 320px;
+  height: 320px;
+  background-image: url('../trong_dong.svg');
+  background-size: 100% 100%;
+  opacity: 0.06;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .welcome-banner__title {

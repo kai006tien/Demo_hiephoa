@@ -145,6 +145,9 @@ const App = {
           FileManager.renderFileListUser();
         }
         break;
+      case 'suggestions':
+        Suggestions.init();
+        break;
 
     }
   },

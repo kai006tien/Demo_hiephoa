@@ -10,6 +10,7 @@ const Storage = {
     VOTES: 'hha_votes',
     NOTIFICATIONS: 'hha_notifications',
     FILES: 'hha_files',
+    SUGGESTIONS: 'hha_suggestions',
     SESSION: 'hha_session'
   },
 
@@ -84,7 +85,8 @@ const Storage = {
 
   // === DOCUMENTS ===
   getDocuments() {
-    return Storage.get(Storage.KEYS.DOCUMENTS) || [];
+    const list = Storage.get(Storage.KEYS.DOCUMENTS) || [];
+    return list.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   },
 
   saveDocuments(docs) {
@@ -100,13 +102,14 @@ const Storage = {
   },
 
   updateDocument(id, updates) {
-    const docs = Storage.getDocuments();
+    const docs = Storage.get(Storage.KEYS.DOCUMENTS) || [];
     const index = docs.findIndex(d => d.id === id);
     if (index !== -1) {
-      docs[index] = { ...docs[index], ...updates };
+      const updatedItem = { ...docs[index], ...updates, updatedAt: new Date().toISOString() };
+      docs[index] = updatedItem;
       Storage.saveDocuments(docs);
-      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Documents', docs[index]);
-      return docs[index];
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Documents', updatedItem);
+      return updatedItem;
     }
     return null;
   },
@@ -119,7 +122,8 @@ const Storage = {
 
   // === VOTES ===
   getVotes() {
-    return Storage.get(Storage.KEYS.VOTES) || [];
+    const list = Storage.get(Storage.KEYS.VOTES) || [];
+    return list.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   },
 
   saveVotes(votes) {
@@ -135,20 +139,22 @@ const Storage = {
   },
 
   updateVote(id, updates) {
-    const votes = Storage.getVotes();
+    const votes = Storage.get(Storage.KEYS.VOTES) || [];
     const index = votes.findIndex(v => v.id === id);
     if (index !== -1) {
-      votes[index] = { ...votes[index], ...updates };
+      const updatedItem = { ...votes[index], ...updates, updatedAt: new Date().toISOString() };
+      votes[index] = updatedItem;
       Storage.saveVotes(votes);
-      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Votes', votes[index]);
-      return votes[index];
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Votes', updatedItem);
+      return updatedItem;
     }
     return null;
   },
 
   // === NOTIFICATIONS ===
   getNotifications() {
-    return Storage.get(Storage.KEYS.NOTIFICATIONS) || [];
+    const list = Storage.get(Storage.KEYS.NOTIFICATIONS) || [];
+    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   },
 
   saveNotifications(notifs) {
@@ -165,7 +171,8 @@ const Storage = {
 
   // === FILES ===
   getFiles() {
-    return Storage.get(Storage.KEYS.FILES) || [];
+    const list = Storage.get(Storage.KEYS.FILES) || [];
+    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   },
 
   saveFiles(files) {
@@ -183,6 +190,24 @@ const Storage = {
     const files = Storage.getFiles().filter(f => f.id !== id);
     Storage.saveFiles(files);
     if (typeof Sync !== 'undefined') Sync.syncMutation('delete', 'Files', { id });
+  },
+
+  // === SUGGESTIONS ===
+  getSuggestions() {
+    const list = Storage.get(Storage.KEYS.SUGGESTIONS) || [];
+    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  },
+
+  saveSuggestions(suggestions) {
+    Storage.set(Storage.KEYS.SUGGESTIONS, suggestions);
+  },
+
+  addSuggestion(suggestion) {
+    const suggestions = Storage.getSuggestions();
+    suggestions.unshift(suggestion);
+    Storage.saveSuggestions(suggestions);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Suggestions', suggestion);
+    return suggestion;
   },
 
   // === SESSION ===

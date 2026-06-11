@@ -146,19 +146,22 @@ const Sync = {
       const currentVotes = localStorage.getItem('hha_votes');
       const currentNotifs = localStorage.getItem('hha_notifications');
       const currentFiles = localStorage.getItem('hha_files');
+      const currentSuggestions = localStorage.getItem('hha_suggestions');
 
       const newAccounts = JSON.stringify(cloudData.Accounts || []);
       const newDocs = JSON.stringify(cloudData.Documents || []);
       const newVotes = JSON.stringify(cloudData.Votes || []);
       const newNotifs = JSON.stringify(cloudData.Notifications || []);
       const newFiles = JSON.stringify(cloudData.Files || []);
+      const newSuggestions = JSON.stringify(cloudData.Suggestions || []);
 
       const hasChanged =
         currentAccounts !== newAccounts ||
         currentDocs !== newDocs ||
         currentVotes !== newVotes ||
         currentNotifs !== newNotifs ||
-        currentFiles !== newFiles;
+        currentFiles !== newFiles ||
+        currentSuggestions !== newSuggestions;
 
       if (hasChanged) {
         console.log('☁️ Phát hiện dữ liệu mới từ đám mây. Đang đồng bộ và cập nhật...');
@@ -194,6 +197,9 @@ const Sync = {
     }
     if (cloudData.Files) {
       localStorage.setItem('hha_files', JSON.stringify(cloudData.Files));
+    }
+    if (cloudData.Suggestions) {
+      localStorage.setItem('hha_suggestions', JSON.stringify(cloudData.Suggestions));
     }
   },
 
@@ -328,7 +334,8 @@ const Sync = {
         documents: Storage.getDocuments(),
         votes: Storage.getVotes(),
         notifications: Storage.getNotifications(),
-        files: Storage.getFiles()
+        files: Storage.getFiles(),
+        suggestions: Storage.getSuggestions()
       },
       token: CONFIG.secretToken
     };

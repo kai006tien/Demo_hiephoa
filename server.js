@@ -35,12 +35,24 @@ const FileSchema = new mongoose.Schema({
   downloadUrl: String,
   fileData: String // Large base64 Data URL string
 }, { strict: false, collection: 'files' });
+const SuggestionSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  senderId: String,
+  senderName: String,
+  receiverId: String,
+  receiverName: String,
+  title: String,
+  content: String,
+  isAnonymous: Boolean,
+  createdAt: String
+}, { strict: false, collection: 'suggestions' });
 
 const AccountModel = mongoose.model('Account', AccountSchema);
 const DocumentModel = mongoose.model('Document', DocumentSchema);
 const VoteModel = mongoose.model('Vote', VoteSchema);
 const NotificationModel = mongoose.model('Notification', NotificationSchema);
 const FileModel = mongoose.model('File', FileSchema);
+const SuggestionModel = mongoose.model('Suggestion', SuggestionSchema);
 
 // Auto-seed function to initialize the database with default data if empty
 async function initializeMongoDbData() {
@@ -316,6 +328,7 @@ app.get('/api/sync', checkToken, async (req, res) => {
         else if (sheet === 'Documents') data = await DocumentModel.find({});
         else if (sheet === 'Votes') data = await VoteModel.find({});
         else if (sheet === 'Notifications') data = await NotificationModel.find({});
+        else if (sheet === 'Suggestions') data = await SuggestionModel.find({});
         else if (sheet === 'Files') data = await FileModel.find({}, { fileData: 0 }); // Hide base64 content
         
         return res.json({ data });
@@ -327,6 +340,7 @@ app.get('/api/sync', checkToken, async (req, res) => {
       const votes = await VoteModel.find({});
       const notifications = await NotificationModel.find({});
       const files = await FileModel.find({}, { fileData: 0 }); // Hide base64 content for speed
+      const suggestions = await SuggestionModel.find({});
 
       return res.json({
         data: {
@@ -334,7 +348,8 @@ app.get('/api/sync', checkToken, async (req, res) => {
           Documents: documents,
           Votes: votes,
           Notifications: notifications,
-          Files: files
+          Files: files,
+          Suggestions: suggestions
         }
       });
     } else {
@@ -357,7 +372,8 @@ app.get('/api/sync', checkToken, async (req, res) => {
           Documents: db.documents || [],
           Votes: db.votes || [],
           Notifications: db.notifications || [],
-          Files: filesMetadataOnly
+          Files: filesMetadataOnly,
+          Suggestions: db.suggestions || []
         }
       });
     }
@@ -379,6 +395,7 @@ app.post('/api/sync', checkToken, async (req, res) => {
         else if (sheet === 'Votes') Model = VoteModel;
         else if (sheet === 'Notifications') Model = NotificationModel;
         else if (sheet === 'Files') Model = FileModel;
+        else if (sheet === 'Suggestions') Model = SuggestionModel;
 
         if (!Model) {
           return res.status(400).json({ error: 'Mô hình dữ liệu không hợp lệ.' });
@@ -432,6 +449,9 @@ app.post('/api/sync', checkToken, async (req, res) => {
         } else if (sheet === 'Notifications') {
           await NotificationModel.deleteMany({});
           if (rows && rows.length > 0) await NotificationModel.insertMany(rows);
+        } else if (sheet === 'Suggestions') {
+          await SuggestionModel.deleteMany({});
+          if (rows && rows.length > 0) await SuggestionModel.insertMany(rows);
         } else if (sheet === 'Files') {
           // Sync files list from client, preserving existing fileData without querying it!
           const ids = (rows || []).map(r => r.id);
@@ -470,6 +490,10 @@ app.post('/api/sync', checkToken, async (req, res) => {
         if (data.notifications) {
           await NotificationModel.deleteMany({});
           if (data.notifications.length > 0) await NotificationModel.insertMany(data.notifications);
+        }
+        if (data.suggestions) {
+          await SuggestionModel.deleteMany({});
+          if (data.suggestions.length > 0) await SuggestionModel.insertMany(data.suggestions);
         }
         if (data.files) {
           // Sync files list from client, preserving existing fileData without querying it!
@@ -558,6 +582,7 @@ app.post('/api/sync', checkToken, async (req, res) => {
         if (data.documents) db.documents = data.documents;
         if (data.votes) db.votes = data.votes;
         if (data.notifications) db.notifications = data.notifications;
+        if (data.suggestions) db.suggestions = data.suggestions;
         if (data.files) {
           // Preserve base64
           const fileDataMap = {};

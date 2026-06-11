@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <!-- Outer Rim -->
+  <circle cx="250" cy="250" r="240" fill="none" stroke="currentColor" stroke-width="2.5" />
+  
+  <!-- Outer dotted ring -->
+  <circle cx="250" cy="250" r="232" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="1 5" stroke-linecap="round" />
+  <circle cx="250" cy="250" r="226" fill="none" stroke="currentColor" stroke-width="1.5" />
+  
+  <!-- Circle of tangent lines/triangles (represented as a fine dashed circle) -->
+  <circle cx="250" cy="250" r="218" fill="none" stroke="currentColor" stroke-width="3.5" stroke-dasharray="2 4" />
+  <circle cx="250" cy="250" r="210" fill="none" stroke="currentColor" stroke-width="1.5" />
+  
+  <!-- Bird ring borders -->
+  <circle cx="250" cy="250" r="198" fill="none" stroke="currentColor" stroke-width="2" />
+  
+  <!-- Stylized Lạc Birds (traditional Vietnamese flying cranes) flying counter-clockwise -->
+  <g fill="currentColor">
+    <!-- Bird 1 (Top) -->
+    <path d="M 250 62 C 220 62, 205 70, 195 85 C 205 75, 225 70, 250 70 C 265 70, 275 75, 280 80 L 285 75 C 275 66, 265 62, 250 62 Z" />
+    <path d="M 255 70 L 260 76 L 245 74 Z" />
+    <!-- Bird 2 (Right Top) -->
+    <path d="M 382 118 C 361 97, 340 94, 323 99 C 336 97, 353 103, 369 121 C 379 132, 383 143, 384 149 L 390 146 C 388 135, 383 125, 382 118 Z" />
+    <!-- Bird 3 (Right Bottom) -->
+    <path d="M 438 250 C 438 220, 430 205, 415 195 C 425 205, 430 225, 430 250 C 430 265, 425 275, 420 280 L 425 285 C 434 275, 438 265, 438 250 Z" />
+    <!-- Bird 4 (Bottom Right) -->
+    <path d="M 382 382 C 403 361, 406 340, 401 323 C 403 336, 397 353, 379 369 C 368 379, 357 383, 351 384 L 354 390 C 365 388, 375 383, 382 382 Z" />
+    <!-- Bird 5 (Bottom) -->
+    <path d="M 250 438 C 280 438, 295 430, 305 415 C 295 425, 275 430, 250 430 C 235 430, 225 425, 220 420 L 215 425 C 225 434, 235 438, 250 438 Z" />
+    <!-- Bird 6 (Bottom Left) -->
+    <path d="M 118 382 C 139 403, 160 406, 177 401 C 164 403, 147 397, 131 379 C 121 368, 117 357, 116 351 L 110 354 C 112 365, 117 375, 118 382 Z" />
+    <!-- Bird 7 (Left) -->
+    <path d="M 62 250 C 62 280, 70 295, 85 305 C 75 295, 70 275, 70 250 C 70 235, 75 225, 80 220 L 75 215 C 66 225, 62 235, 62 250 Z" />
+    <!-- Bird 8 (Left Top) -->
+    <path d="M 118 118 C 97 139, 94 160, 99 177 C 97 164, 103 147, 121 131 C 132 121, 143 117, 149 116 L 146 110 C 135 112, 125 117, 118 118 Z" />
+  </g>
+
+  <!-- Inner bands -->
+  <circle cx="250" cy="250" r="156" fill="none" stroke="currentColor" stroke-width="2.5" />
+  <circle cx="250" cy="250" r="148" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
+  <circle cx="250" cy="250" r="140" fill="none" stroke="currentColor" stroke-width="1.5" />
+  <circle cx="250" cy="250" r="126" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="1 4" stroke-linecap="round" />
+  <circle cx="250" cy="250" r="114" fill="none" stroke="currentColor" stroke-width="1.5" />
+  <circle cx="250" cy="250" r="85" fill="none" stroke="currentColor" stroke-width="2" />
+  
+  <!-- Central Star (12 points) -->
+  <g fill="currentColor">
+    <!-- Star core & rays -->
+    <polygon points="
+      250,110 255,148 285,125 273,158 312,148 287,173 
+      325,185 292,192 320,215 288,220 300,250 273,245
+      285,275 255,252 250,290 245,252 215,275 227,245
+      200,250 212,220 180,215 208,192 175,185 213,173
+      188,148 227,158 215,125 245,148" />
+  </g>
+</svg>

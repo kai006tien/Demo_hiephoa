@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/documents.css">
   <link rel="stylesheet" href="css/voting.css">
   <link rel="stylesheet" href="css/notifications.css">
+  <link rel="stylesheet" href="css/suggestions.css">
   <link rel="stylesheet" href="css/responsive.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
 </head>
@@ -104,6 +105,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span>Tải file / Báo cáo</span>
           </div>
+          <div class="sidebar__item" data-section="suggestions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>Hòm thư góp ý</span>
+          </div>
         </div>
       </nav>
     </aside>
@@ -181,7 +186,7 @@
         <div class="main-content__header">
           <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg> Biểu quyết</h2>
         </div>
-        <div id="votes-list"></div>
+        <div id="votes-list" class="vote-list"></div>
       </section>
 
       <!-- NOTIFICATIONS -->
@@ -199,6 +204,11 @@
           <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Tải file / Báo cáo</h2>
         </div>
         <div id="files-list"></div>
+      </section>
+
+      <!-- SUGGESTIONS -->
+      <section class="content-section" id="section-suggestions">
+        <!-- Rendered dynamically by suggestions.js -->
       </section>
     </main>
   </div>
@@ -231,6 +241,40 @@
     </div>
   </div>
 
+  <!-- Suggestion Modal -->
+  <div class="modal-overlay" id="modal-suggestion">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title">Gửi ý kiến đóng góp</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-suggestion')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <form id="suggestion-form" onsubmit="event.preventDefault();Suggestions.saveSuggestion();">
+          <div class="form-group">
+            <label class="form-label">Người nhận <span class="required">*</span></label>
+            <select class="form-select" id="suggestion-receiver" required style="width: 100%; height: 38px; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0 var(--space-3);"></select>
+          </div>
+          <div class="form-group" style="margin-top: 15px;">
+            <label class="form-label">Tiêu đề ý kiến <span class="required">*</span></label>
+            <input class="form-input" type="text" id="suggestion-title-input" placeholder="VD: Góp ý về lịch họp..." required style="border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);">
+          </div>
+          <div class="form-group" style="margin-top: 15px;">
+            <label class="form-label">Nội dung đóng góp <span class="required">*</span></label>
+            <textarea class="form-textarea" id="suggestion-content-input" placeholder="Nhập chi tiết ý kiến đóng góp của bạn..." style="min-height:120px; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);" required></textarea>
+          </div>
+          <div class="form-group d-flex items-center gap-2" style="margin-top: 15px;">
+            <input type="checkbox" id="suggestion-anon-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
+            <label for="suggestion-anon-checkbox" style="font-weight: 500; cursor: pointer; color: var(--color-text-secondary); user-select: none;">Gửi dưới dạng ẩn danh (Không hiển thị danh tính)</label>
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-suggestion')">Hủy</button>
+        <button class="btn btn-primary" onclick="Suggestions.saveSuggestion()">Gửi đóng góp</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/utils.js"></script>
   <script src="js/config.js"></script>
   <script src="js/sync.js"></script>
@@ -241,6 +285,7 @@
   <script src="js/voting.js"></script>
   <script src="js/notifications.js"></script>
   <script src="js/filemanager.js"></script>
+  <script src="js/suggestions.js"></script>
   <script src="js/app.js"></script>
   <script>
     document.getElementById('top-bar-date').textContent = Utils.getVietnameseDay();
