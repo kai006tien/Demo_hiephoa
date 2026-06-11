@@ -208,6 +208,16 @@ const Utils = {
     URL.revokeObjectURL(url);
   },
 
+  // Download Base64 File Helper
+  downloadBase64File(fileName, dataUrl) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
   // Animate number counter
   animateCounter(element, target, duration = 1000) {
     let start = 0;

@@ -109,6 +109,9 @@ function doPost(e) {
       case 'syncAll':
         result = syncAllData(data.data);
         break;
+      case 'uploadFile':
+        result = uploadFileToDrive(data.fileName, data.base64, data.mimeType);
+        break;
       case 'append':
         result = appendRow(data.sheet, data.row);
         break;
@@ -321,4 +324,25 @@ function exportData(sheetName) {
     return readSheet(sheetName);
   }
   return readAllSheets();
+}
+
+// ========== TẢI FILE LÊN GOOGLE DRIVE ==========
+
+function uploadFileToDrive(fileName, base64Data, mimeType) {
+  try {
+    const decodedBytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
+    const file = DriveApp.createFile(blob);
+    
+    // Thiết lập quyền chia sẻ công khai cho bất kỳ ai có link đều xem/tải được
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return {
+      success: true,
+      downloadUrl: file.getDownloadUrl(),
+      viewUrl: file.getUrl()
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }

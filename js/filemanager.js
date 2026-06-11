@@ -163,27 +163,95 @@ const FileManager = {
     const description = prompt('Nhập mô tả cho file (có thể bỏ trống):');
     if (description === null) return; // Cancel upload
 
-    const newFile = {
-      id: Utils.generateId(),
-      fileName: file.name,
-      fileSize: file.size,
-      uploadedBy: Auth.getSession().userId,
-      description: description.trim(),
-      createdAt: Utils.getCurrentDate()
+    Utils.showToast('info', 'Đang xử lý', 'Đang đọc và chuẩn bị tải file...');
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      const base64Payload = dataUrl.split(',')[1];
+      
+      let downloadUrl = null;
+      
+      // Nếu có kích hoạt đồng bộ, tải file lên Google Drive
+      if (typeof Sync !== 'undefined' && Sync.isEnabled() && Sync.getUrl()) {
+        Utils.showToast('info', 'Đang tải lên', 'Đang tải file lên Google Drive...');
+        try {
+          const response = await fetch(Sync.getUrl(), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/plain'
+            },
+            body: JSON.stringify({
+              action: 'uploadFile',
+              fileName: file.name,
+              mimeType: file.type,
+              base64: base64Payload,
+              token: CONFIG.secretToken
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              downloadUrl = result.downloadUrl;
+            }
+          }
+        } catch (err) {
+          console.error('Lỗi khi tải file lên Drive:', err);
+        }
+      }
+
+      const newFile = {
+        id: Utils.generateId(),
+        fileName: file.name,
+        fileSize: file.size,
+        uploadedBy: Auth.getSession().userId,
+        description: description.trim(),
+        createdAt: Utils.getCurrentDate(),
+        downloadUrl: downloadUrl,
+        fileData: file.size < 2 * 1024 * 1024 ? dataUrl : null // Chỉ lưu base64 cục bộ nếu dưới 2MB để tránh quá tải LocalStorage
+      };
+
+      Storage.addFile(newFile);
+      Utils.showToast('success', 'Thành công', `Đã tải lên "${file.name}" thành công!`);
+      
+      if (Auth.isAdmin()) {
+        FileManager.renderFileListAdmin();
+      } else {
+        FileManager.renderFileListUser();
+      }
     };
 
-    Storage.addFile(newFile);
-    Utils.showToast('success', 'Thành công', `Đã tải lên "${file.name}"`);
-    FileManager.renderFileListUser();
+    reader.onerror = () => {
+      Utils.showToast('error', 'Lỗi', 'Không thể đọc file.');
+    };
+
+    reader.readAsDataURL(file);
   },
 
   // Download file
   downloadFile(id) {
     const file = Storage.getFiles().find(f => f.id === id);
-    if (file) {
-      Utils.showToast('info', 'Tải xuống', `Đang tải "${file.fileName}"...`);
+    if (!file) return;
+
+    Utils.showToast('info', 'Tải xuống', `Đang tải "${file.fileName}"...`);
+    
+    // Nếu là file đã tải lên Google Drive, tải trực tiếp từ Drive
+    if (file.downloadUrl) {
       setTimeout(() => {
-        Utils.downloadFile(file.fileName, `Tên file: ${file.fileName}\nMô tả: ${file.description || 'Không có mô tả'}\nNgày gửi: ${Utils.formatDateTime(file.createdAt)}`);
+        window.open(file.downloadUrl, '_blank');
+      }, 500);
+    } 
+    // Nếu có dữ liệu base64 (file lưu cục bộ), tải file thật
+    else if (file.fileData) {
+      setTimeout(() => {
+        Utils.downloadBase64File(file.fileName, file.fileData);
+      }, 500);
+    } 
+    // Fallback nếu không có file thật (file từ bản cũ hoặc bị lỗi)
+    else {
+      setTimeout(() => {
+        Utils.downloadFile(file.fileName, `Tên file: ${file.fileName}\nMô tả: ${file.description || 'Không có mô tả'}\nNgày gửi: ${Utils.formatDateTime(file.createdAt)}\n\n(Lưu ý: Nội dung file gốc không khả dụng trên trình duyệt này)`);
       }, 500);
     }
   },

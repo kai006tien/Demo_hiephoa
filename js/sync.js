@@ -10,6 +10,7 @@ const Sync = {
   },
 
   isSyncing: false,
+  pollingIntervalId: null,
 
   // Initialize Sync settings
   init() {
@@ -33,9 +34,10 @@ const Sync = {
     // Add status indicator to top bar if it exists
     this.injectStatusIndicator();
 
-    // Perform background sync if enabled
+    // Perform background sync and start polling if enabled
     if (this.isEnabled()) {
       this.backgroundSync();
+      this.startPolling(4000); // Đồng bộ nền mỗi 4 giây
     }
   },
 
@@ -60,9 +62,28 @@ const Sync = {
 
     this.updateStatusUI();
 
-    // If turned on, perform initial background sync
+    // If turned on, perform initial background sync and start polling
     if (enabled && url.trim()) {
       this.backgroundSync();
+      this.startPolling(4000);
+    } else {
+      this.stopPolling();
+    }
+  },
+
+  // Bắt đầu đồng bộ tự động theo chu kỳ
+  startPolling(ms = 4000) {
+    if (this.pollingIntervalId) clearInterval(this.pollingIntervalId);
+    this.pollingIntervalId = setInterval(() => {
+      this.backgroundSync(true); // silent polling
+    }, ms);
+  },
+
+  // Dừng đồng bộ tự động
+  stopPolling() {
+    if (this.pollingIntervalId) {
+      clearInterval(this.pollingIntervalId);
+      this.pollingIntervalId = null;
     }
   },
 
@@ -138,14 +159,16 @@ const Sync = {
     }
   },
 
-  // Background Sync (runs on app load)
-  async backgroundSync() {
-    if (!this.isEnabled() || this.isSyncing) return;
+  // Background Sync (runs on app load & periodic polling)
+  async backgroundSync(isSilent = false) {
+    if (!this.isEnabled() || (this.isSyncing && !isSilent)) return;
     const url = this.getUrl();
     if (!url) return;
 
-    this.isSyncing = true;
-    this.updateStatusUI('syncing');
+    if (!isSilent) {
+      this.isSyncing = true;
+      this.updateStatusUI('syncing');
+    }
 
     try {
       const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
@@ -160,23 +183,56 @@ const Sync = {
       const isCloudEmpty = !cloudData.Accounts || cloudData.Accounts.length === 0;
       
       if (isCloudEmpty) {
-        // Cloud is empty. Upload current local data to initialize it
-        console.log('☁️ Cloud database is empty. Uploading local data to initialize Sheets...');
-        await this.uploadAllToCloudInternal(url);
+        if (!isSilent) {
+          console.log('☁️ Cloud database is empty. Uploading local data to initialize Sheets...');
+          await this.uploadAllToCloudInternal(url);
+        }
       } else {
-        // Cloud has data. Sync down and overwrite local storage
-        console.log('☁️ Downloading and syncing cloud data to localStorage...');
-        this.saveCloudDataToLocalStorage(cloudData);
-        
-        // Dispatch event to notify application components to re-render
-        document.dispatchEvent(new CustomEvent('hha_data_synced'));
+        // So sánh dữ liệu để tránh cập nhật lại giao diện không cần thiết
+        const currentAccounts = localStorage.getItem('hha_accounts');
+        const currentDocs = localStorage.getItem('hha_documents');
+        const currentVotes = localStorage.getItem('hha_votes');
+        const currentNotifs = localStorage.getItem('hha_notifications');
+        const currentFiles = localStorage.getItem('hha_files');
+
+        const newAccounts = JSON.stringify(cloudData.Accounts || []);
+        const newDocs = JSON.stringify(cloudData.Documents || []);
+        const newVotes = JSON.stringify(cloudData.Votes || []);
+        const newNotifs = JSON.stringify(cloudData.Notifications || []);
+        const newFiles = JSON.stringify(cloudData.Files || []);
+
+        const hasChanged = 
+          currentAccounts !== newAccounts ||
+          currentDocs !== newDocs ||
+          currentVotes !== newVotes ||
+          currentNotifs !== newNotifs ||
+          currentFiles !== newFiles;
+
+        if (hasChanged) {
+          console.log('☁️ Phát hiện dữ liệu mới từ đám mây. Đang đồng bộ và cập nhật...');
+          this.saveCloudDataToLocalStorage(cloudData);
+          document.dispatchEvent(new CustomEvent('hha_data_synced'));
+        }
       }
-      this.updateStatusUI('synced');
+      
+      if (!isSilent) {
+        this.updateStatusUI('synced');
+      } else {
+        // Xóa chấm đỏ lỗi kết nối nếu đồng bộ nền thành công trở lại
+        const dot = document.getElementById('sync-status-dot');
+        if (dot && dot.style.background.includes('rgb(239, 68, 68)')) {
+          this.updateStatusUI('synced');
+        }
+      }
     } catch (e) {
       console.error('☁️ Sync error:', e);
-      this.updateStatusUI('error');
+      if (!isSilent) {
+        this.updateStatusUI('error');
+      }
     } finally {
-      this.isSyncing = false;
+      if (!isSilent) {
+        this.isSyncing = false;
+      }
     }
   },
 
