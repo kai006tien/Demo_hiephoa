@@ -7,6 +7,10 @@ const App = {
 
   // Initialize app
   init(role) {
+    if (typeof Sync !== 'undefined') {
+      Sync.init();
+    }
+
     Storage.initializeDefaultData();
 
     if (role === 'admin') {
@@ -20,6 +24,12 @@ const App = {
     App.setupSidebar(role);
     App.setupClock();
     Notifications.updateBadge();
+
+    // Listen for cloud data sync to reload views dynamically
+    document.addEventListener('hha_data_synced', () => {
+      App.navigateTo(App.currentSection);
+    });
+
     App.navigateTo('dashboard');
   },
 
@@ -133,6 +143,12 @@ const App = {
           FileManager.renderFileListAdmin();
         } else {
           FileManager.renderFileListUser();
+        }
+        break;
+      case 'sync':
+        if (role === 'admin') {
+          document.getElementById('sync-enabled-toggle').checked = Sync.isEnabled();
+          document.getElementById('sync-script-url').value = Sync.getUrl();
         }
         break;
     }

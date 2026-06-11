@@ -78,9 +78,14 @@
   </div>
 
   <script src="js/utils.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/auth.js"></script>
   <script>
+    // Initialize Sync parameters
+    Sync.init();
+
     // Initialize default data
     Storage.initializeDefaultData();
 

@@ -114,6 +114,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Quản lý tài khoản</span>
           </div>
+          <div class="sidebar__item" data-section="sync">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            <span>Cài đặt đồng bộ</span>
+          </div>
         </div>
       </nav>
     </aside>
@@ -271,6 +275,111 @@
           </div>
         </div>
         <div id="accounts-list"></div>
+      </section>
+
+      <!-- SYNC SECTION -->
+      <section class="content-section" id="section-sync">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            Cấu hình Đồng bộ Google Sheets
+          </h2>
+        </div>
+        
+        <div class="dashboard-grid">
+          <!-- Connection Settings Card -->
+          <div class="card animate-fadeInUp">
+            <div class="card__header">
+              <div class="card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Thông tin kết nối đám mây
+              </div>
+            </div>
+            <div class="card__body">
+              <form id="sync-config-form" onsubmit="event.preventDefault();Sync.saveSettingsFromUI();">
+                <div class="form-group">
+                  <label class="form-label" style="display: block; margin-bottom: 8px;">Trạng thái đồng bộ</label>
+                  <label class="toggle-switch" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="sync-enabled-toggle" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="font-size: 14px; font-weight: 500; color: var(--color-text);">Kích hoạt đồng bộ hóa qua Google Sheets</span>
+                  </label>
+                  <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 6px; line-height: 1.4;">Khi được kích hoạt, dữ liệu sẽ được đọc từ và lưu online trực tiếp trên Google Sheets.</p>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                  <label class="form-label" for="sync-script-url" style="display: block; margin-bottom: 8px;">URL Web App của Google Apps Script</label>
+                  <input class="form-input" type="url" id="sync-script-url" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%;" required>
+                  <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 6px; line-height: 1.4;">Dán URL nhận được sau khi bạn Deploy Google Apps Script dưới dạng Web App.</p>
+                </div>
+                
+                <div class="d-flex gap-3" style="margin-top: 24px; display: flex; gap: 12px;">
+                  <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
+                  <button type="button" class="btn btn-secondary" onclick="Sync.testConnection().then(res => { if(res.success) { alert('✅ Kết nối thành công đến Google Sheets!'); } else { alert('❌ Kết nối thất bại: ' + res.error); } })">Kiểm tra kết nối</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Manual Operations Card -->
+          <div class="card animate-fadeInUp" style="animation-delay: 0.1s;">
+            <div class="card__header">
+              <div class="card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Truyền tải dữ liệu thủ công
+              </div>
+            </div>
+            <div class="card__body">
+              <p style="font-size: 13.5px; color: var(--color-text); margin-bottom: 16px; line-height: 1.5;">Bạn có thể đồng bộ dữ liệu giữa trình duyệt này và Google Sheets bằng tay bất kỳ lúc nào:</p>
+              
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn btn-secondary" style="width: 100%; justify-content: center; align-items: center; gap: 8px; display: inline-flex;" onclick="Sync.downloadAllFromCloud()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+                  Tải dữ liệu từ Google Sheets về máy (Download)
+                </button>
+                <button class="btn btn-secondary" style="width: 100%; justify-content: center; align-items: center; gap: 8px; display: inline-flex;" onclick="Sync.uploadAllToCloud()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+                  Đẩy dữ liệu từ máy lên Google Sheets (Upload)
+                </button>
+              </div>
+              
+              <div style="margin-top: 18px; font-size: 12px; padding: 12px; border-radius: 6px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); color: #B45309; line-height: 1.5;">
+                <strong>⚠️ Chú ý:</strong> 
+                <ul style="margin-left: 15px; margin-top: 4px; list-style-type: disc;">
+                  <li>Tải về máy sẽ ghi đè toàn bộ dữ liệu đang lưu trong trình duyệt này.</li>
+                  <li>Đẩy lên mạng sẽ ghi đè toàn bộ các bản ghi đang lưu trên Google Sheets.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- How to use Card -->
+        <div class="card animate-fadeInUp" style="margin-top: 20px; animation-delay: 0.2s;">
+          <div class="card__header">
+            <div class="card__title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Hướng dẫn thiết lập Google Sheets làm Cơ sở dữ liệu
+            </div>
+          </div>
+          <div class="card__body" style="font-size: 14px; line-height: 1.6; color: var(--color-text);">
+            <ol style="margin-left: 20px; display: flex; flex-direction: column; gap: 10px;">
+              <li>Tạo một <strong>Google Sheet mới</strong> trên tài khoản Google Drive của bạn (ví dụ đặt tên là: <code>HiepHoa_Admin_Data</code>).</li>
+              <li>Tạo chính xác 5 trang tính (tab) với tên phân biệt hoa thường: <strong>Accounts</strong>, <strong>Documents</strong>, <strong>Votes</strong>, <strong>Notifications</strong>, và <strong>Files</strong>.</li>
+              <li>Trên menu Google Sheet, chọn <strong>Tiện ích mở rộng (Extensions)</strong> &rarr; <strong>Apps Script</strong>.</li>
+              <li>Sao chép toàn bộ nội dung trong tệp <strong>google-apps-script.gs</strong> trong thư mục gốc của dự án này và dán thay thế cho nội dung mặc định của trình Apps Script.</li>
+              <li>Tìm dòng <code>const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';</code> và thay thế bằng ID Google Sheet của bạn (chuỗi ký tự dài nằm giữa <code>/d/</code> và <code>/edit</code> trên địa chỉ trang tính). Nhấn biểu tượng Save để lưu lại.</li>
+              <li>Ở góc trên bên phải, nhấn nút <strong>Triển khai (Deploy)</strong> &rarr; chọn <strong>Triển khai mới (New deployment)</strong>:
+                <ul style="margin-left: 20px; margin-top: 5px; list-style-type: disc;">
+                  <li>Chọn loại triển khai (bằng cách nhấn vào bánh răng cạnh chữ Select type): <strong>Ứng dụng web (Web app)</strong>.</li>
+                  <li>Thực thi dưới quyền (Execute as): <strong>Tôi (Me)</strong>.</li>
+                  <li>Ai có quyền truy cập (Who has access): <strong>Mọi người (Anyone)</strong>.</li>
+                  <li>Nhấn nút <strong>Triển khai (Deploy)</strong> và cấp quyền truy cập tài khoản Google của bạn nếu được yêu cầu.</li>
+                </ul>
+              </li>
+              <li>Sao chép đường dẫn <strong>URL Web App</strong> được hiển thị (URL kết thúc bằng <code>/exec</code>), dán vào ô cấu hình ở trên, tích chọn <strong>Kích hoạt đồng bộ</strong> và nhấn <strong>Lưu cấu hình</strong>.</li>
+            </ol>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -459,6 +568,8 @@
 
   <!-- Scripts -->
   <script src="js/utils.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/accounts.js"></script>

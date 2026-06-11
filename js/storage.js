@@ -46,6 +46,7 @@ const Storage = {
 
   saveAccounts(accounts) {
     Storage.set(Storage.KEYS.ACCOUNTS, accounts);
+    if (typeof Sync !== 'undefined') Sync.syncSheet('Accounts', accounts);
   },
 
   getAccountById(id) {
@@ -86,6 +87,7 @@ const Storage = {
 
   saveDocuments(docs) {
     Storage.set(Storage.KEYS.DOCUMENTS, docs);
+    if (typeof Sync !== 'undefined') Sync.syncSheet('Documents', docs);
   },
 
   addDocument(doc) {
@@ -118,6 +120,7 @@ const Storage = {
 
   saveVotes(votes) {
     Storage.set(Storage.KEYS.VOTES, votes);
+    if (typeof Sync !== 'undefined') Sync.syncSheet('Votes', votes);
   },
 
   addVote(vote) {
@@ -145,6 +148,7 @@ const Storage = {
 
   saveNotifications(notifs) {
     Storage.set(Storage.KEYS.NOTIFICATIONS, notifs);
+    if (typeof Sync !== 'undefined') Sync.syncSheet('Notifications', notifs);
   },
 
   addNotification(notif) {
@@ -161,6 +165,7 @@ const Storage = {
 
   saveFiles(files) {
     Storage.set(Storage.KEYS.FILES, files);
+    if (typeof Sync !== 'undefined') Sync.syncSheet('Files', files);
   },
 
   addFile(file) {
