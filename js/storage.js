@@ -249,7 +249,7 @@ const Storage = {
         createdAt: new Date(2024, 3, 10).toISOString()
       }
     ];
-    Storage.saveAccounts(accounts);
+    Storage.set(Storage.KEYS.ACCOUNTS, accounts);
 
     // Create sample documents
     const documents = [
@@ -298,7 +298,7 @@ const Storage = {
         createdAt: new Date(2026, 5, 1).toISOString()
       }
     ];
-    Storage.saveDocuments(documents);
+    Storage.set(Storage.KEYS.DOCUMENTS, documents);
 
     // Create sample votes
     const votes = [
@@ -329,7 +329,7 @@ const Storage = {
         closedAt: new Date(2026, 4, 22, 17, 0).toISOString()
       }
     ];
-    Storage.saveVotes(votes);
+    Storage.set(Storage.KEYS.VOTES, votes);
 
     // Create sample notifications
     const notifications = [
@@ -361,7 +361,7 @@ const Storage = {
         createdAt: new Date(2026, 5, 8, 9, 0).toISOString()
       }
     ];
-    Storage.saveNotifications(notifications);
+    Storage.set(Storage.KEYS.NOTIFICATIONS, notifications);
 
     // Create sample files
     const files = [
@@ -382,8 +382,8 @@ const Storage = {
         createdAt: new Date(2026, 5, 6, 10, 0).toISOString()
       }
     ];
-    Storage.saveFiles(files);
+    Storage.set(Storage.KEYS.FILES, files);
 
-    console.log('✅ Default data initialized successfully');
+    console.log('✅ Default data initialized locally without network push');
   }
 };
