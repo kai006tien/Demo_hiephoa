@@ -172,20 +172,21 @@ const FileManager = {
       
       let downloadUrl = null;
       
-      // Nếu có kích hoạt đồng bộ, tải file lên Google Drive
+      // Nếu có kích hoạt đồng bộ, tải file lên server/db
       if (typeof Sync !== 'undefined' && Sync.isEnabled() && Sync.getUrl()) {
-        Utils.showToast('info', 'Đang tải lên', 'Đang tải file lên Google Drive...');
+        Utils.showToast('info', 'Đang tải lên', 'Đang tải file lên cơ sở dữ liệu...');
         try {
-          const response = await fetch(Sync.getUrl(), {
+          const response = await fetch('/api/uploadFile', {
             method: 'POST',
             headers: {
-              'Content-Type': 'text/plain'
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              action: 'uploadFile',
               fileName: file.name,
               mimeType: file.type,
               base64: base64Payload,
+              uploadedBy: Auth.getSession().userId,
+              description: description.trim(),
               token: CONFIG.secretToken
             })
           });
@@ -197,7 +198,7 @@ const FileManager = {
             }
           }
         } catch (err) {
-          console.error('Lỗi khi tải file lên Drive:', err);
+          console.error('Lỗi khi tải file lên máy chủ:', err);
         }
       }
 

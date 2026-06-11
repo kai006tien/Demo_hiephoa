@@ -14,61 +14,22 @@ const Sync = {
 
   // Initialize Sync settings
   init() {
-    const localUrl = localStorage.getItem(this.KEYS.URL);
-    
-    // Nếu trong config.js có cấu hình URL cứng từ nhà phát triển,
-    // hãy tự động cập nhật LocalStorage để đồng bộ ngay lập tức
-    if (CONFIG.googleScriptUrl && (!localUrl || localUrl !== CONFIG.googleScriptUrl)) {
-      localStorage.setItem(this.KEYS.URL, CONFIG.googleScriptUrl);
-      localStorage.setItem(this.KEYS.ENABLED, CONFIG.syncEnabled);
-    } else {
-      // Khởi tạo mặc định nếu chưa từng lưu
-      if (localStorage.getItem(this.KEYS.ENABLED) === null) {
-        localStorage.setItem(this.KEYS.ENABLED, CONFIG.syncEnabled);
-      }
-      if (localStorage.getItem(this.KEYS.URL) === null) {
-        localStorage.setItem(this.KEYS.URL, CONFIG.googleScriptUrl);
-      }
-    }
-
     // Add status indicator to top bar if it exists
     this.injectStatusIndicator();
 
-    // Perform background sync and start polling if enabled
-    if (this.isEnabled()) {
-      this.backgroundSync();
-      this.startPolling(4000); // Đồng bộ nền mỗi 4 giây
-    }
+    // Perform background sync and start polling
+    this.backgroundSync();
+    this.startPolling(4000); // Đồng bộ nền mỗi 4 giây
   },
 
-  // Check if sync is enabled
+  // Check if sync is enabled (always true since MongoDB is core backend)
   isEnabled() {
-    return localStorage.getItem(this.KEYS.ENABLED) === 'true';
+    return true;
   },
 
-  // Get Google Apps Script URL
+  // Get API URL
   getUrl() {
-    return localStorage.getItem(this.KEYS.URL) || '';
-  },
-
-  // Save settings from Admin UI
-  saveSettings(enabled, url) {
-    localStorage.setItem(this.KEYS.ENABLED, enabled);
-    localStorage.setItem(this.KEYS.URL, url.trim());
-    
-    // Update active CONFIG object
-    CONFIG.syncEnabled = enabled;
-    CONFIG.googleScriptUrl = url.trim();
-
-    this.updateStatusUI();
-
-    // If turned on, perform initial background sync and start polling
-    if (enabled && url.trim()) {
-      this.backgroundSync();
-      this.startPolling(4000);
-    } else {
-      this.stopPolling();
-    }
+    return CONFIG.googleScriptUrl || '/api/sync';
   },
 
   // Bắt đầu đồng bộ tự động theo chu kỳ
@@ -138,16 +99,16 @@ const Sync = {
     }
   },
 
-  // Test connection to Google Apps Script Web App
+  // Test connection to Database
   async testConnection(testUrl = null) {
     const url = testUrl || this.getUrl();
     if (!url) {
-      return { success: false, error: 'Chưa cấu hình URL Google Apps Script.' };
+      return { success: false, error: 'Chưa cấu hình URL kết nối.' };
     }
 
     try {
       const response = await fetch(`${url}?action=read&sheet=Accounts&token=${CONFIG.secretToken}`);
-      if (!response.ok) throw new Error('Không thể kết nối đến Web App.');
+      if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
       
       const result = await response.json();
       if (result.error) {
@@ -264,10 +225,11 @@ const Sync = {
     this.updateStatusUI('saving');
 
     try {
-      // Use text/plain POST content-type to prevent preflight CORS triggers
       await fetch(url, {
         method: 'POST',
-        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           action: 'sync',
           sheet: sheetName,
@@ -288,18 +250,18 @@ const Sync = {
   async downloadAllFromCloud() {
     const url = this.getUrl();
     if (!url) {
-      alert('Vui lòng cấu hình URL Google Apps Script trước.');
+      alert('Vui lòng cấu hình URL kết nối trước.');
       return false;
     }
 
-    if (!confirm('Bạn có chắc chắn muốn tải dữ liệu từ Google Sheets về? Việc này sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại trong trình duyệt này.')) {
+    if (!confirm('Bạn có chắc chắn muốn tải dữ liệu từ cơ sở dữ liệu đám mây về? Việc này sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại trong trình duyệt này.')) {
       return false;
     }
 
     this.updateStatusUI('syncing');
     try {
       const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
-      if (!response.ok) throw new Error('Không thể kết nối đến Web App.');
+      if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
       
       const result = await response.json();
       if (result.error) throw new Error(result.error);
@@ -307,7 +269,7 @@ const Sync = {
       this.saveCloudDataToLocalStorage(result.data || {});
       this.updateStatusUI('synced');
       
-      alert('Đã tải và đồng bộ dữ liệu từ Google Sheets thành công!');
+      alert('Đã tải và đồng bộ dữ liệu thành công!');
       window.location.reload();
       return true;
     } catch (e) {
@@ -321,11 +283,11 @@ const Sync = {
   async uploadAllToCloud() {
     const url = this.getUrl();
     if (!url) {
-      alert('Vui lòng cấu hình URL Google Apps Script trước.');
+      alert('Vui lòng cấu hình URL kết nối trước.');
       return false;
     }
 
-    if (!confirm('Bạn có chắc chắn muốn đẩy toàn bộ dữ liệu hiện tại lên Google Sheets? Việc này sẽ GHI ĐÈ toàn bộ dữ liệu đang có trên Google Sheets.')) {
+    if (!confirm('Bạn có chắc chắn muốn đẩy toàn bộ dữ liệu hiện tại lên cơ sở dữ liệu đám mây? Việc này sẽ GHI ĐÈ toàn bộ dữ liệu đang có trên đám mây.')) {
       return false;
     }
 
@@ -334,7 +296,7 @@ const Sync = {
       const success = await this.uploadAllToCloudInternal(url);
       if (success) {
         this.updateStatusUI('synced');
-        alert('Đã đẩy toàn bộ dữ liệu lên Google Sheets thành công!');
+        alert('Đã đẩy toàn bộ dữ liệu lên cơ sở dữ liệu thành công!');
         return true;
       } else {
         throw new Error('Upload request failed.');
@@ -346,7 +308,7 @@ const Sync = {
     }
   },
 
-  // Internal helper to upload all local data to Apps Script
+  // Internal helper to upload all local data to Express
   async uploadAllToCloudInternal(url) {
     const payload = {
       action: 'syncAll',
@@ -363,7 +325,9 @@ const Sync = {
     try {
       await fetch(url, {
         method: 'POST',
-        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
       return true;
@@ -373,12 +337,5 @@ const Sync = {
     }
   },
 
-  // Save configuration from UI inputs
-  saveSettingsFromUI() {
-    const enabled = document.getElementById('sync-enabled-toggle').checked;
-    const url = document.getElementById('sync-script-url').value.trim();
-
-    this.saveSettings(enabled, url);
-    alert('Đã lưu cấu hình đồng bộ thành công!');
   }
 };

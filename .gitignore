@@ -14,3 +14,7 @@ $RECYCLE.BIN/
 *.tmp
 tmp/
 temp/
+
+# Local configuration
+.env
+node_modules/

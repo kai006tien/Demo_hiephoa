@@ -145,12 +145,7 @@ const App = {
           FileManager.renderFileListUser();
         }
         break;
-      case 'sync':
-        if (role === 'admin') {
-          document.getElementById('sync-enabled-toggle').checked = Sync.isEnabled();
-          document.getElementById('sync-script-url').value = Sync.getUrl();
-        }
-        break;
+
     }
   },
 
