@@ -165,6 +165,7 @@ const FileManager = {
 
     Utils.showToast('info', 'Đang xử lý', 'Đang đọc và chuẩn bị tải file...');
 
+    const fileId = Utils.generateId();
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
@@ -182,6 +183,7 @@ const FileManager = {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+              id: fileId,
               fileName: file.name,
               mimeType: file.type,
               base64: base64Payload,
@@ -203,7 +205,7 @@ const FileManager = {
       }
 
       const newFile = {
-        id: Utils.generateId(),
+        id: fileId,
         fileName: file.name,
         fileSize: file.size,
         uploadedBy: Auth.getSession().userId,

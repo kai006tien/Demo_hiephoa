@@ -492,14 +492,14 @@ app.post('/api/sync', checkToken, async (req, res) => {
 
 // POST /api/uploadFile - Upload file directly to db
 app.post('/api/uploadFile', checkToken, async (req, res) => {
-  const { fileName, mimeType, base64, uploadedBy, description } = req.body;
+  const { id, fileName, mimeType, base64, uploadedBy, description } = req.body;
 
   if (!fileName || !base64) {
     return res.status(400).json({ success: false, error: 'Thiếu tên file hoặc dữ liệu base64.' });
   }
 
-  // Generate unique ID
-  const fileId = 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  // Generate unique ID if not provided by the client
+  const fileId = id || 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
   
   // Make sure base64 starts with the correct prefix
   let fullDataUrl = base64;
