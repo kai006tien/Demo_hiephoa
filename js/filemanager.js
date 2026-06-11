@@ -209,7 +209,7 @@ const FileManager = {
         description: description.trim(),
         createdAt: Utils.getCurrentDate(),
         downloadUrl: downloadUrl,
-        fileData: file.size < 2 * 1024 * 1024 ? dataUrl : null // Chỉ lưu base64 cục bộ nếu dưới 2MB để tránh quá tải LocalStorage
+        fileData: downloadUrl ? null : (file.size < 1.5 * 1024 * 1024 ? dataUrl : null) // Chỉ lưu base64 cục bộ khi không dùng đồng bộ và file dưới 1.5MB
       };
 
       Storage.addFile(newFile);
