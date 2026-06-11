@@ -13,12 +13,21 @@ const Sync = {
 
   // Initialize Sync settings
   init() {
-    // Initialize from CONFIG if not set in localStorage yet
-    if (localStorage.getItem(this.KEYS.ENABLED) === null) {
-      localStorage.setItem(this.KEYS.ENABLED, CONFIG.syncEnabled);
-    }
-    if (localStorage.getItem(this.KEYS.URL) === null) {
+    const localUrl = localStorage.getItem(this.KEYS.URL);
+    
+    // Nếu trong config.js có cấu hình URL cứng từ nhà phát triển,
+    // hãy tự động cập nhật LocalStorage để đồng bộ ngay lập tức
+    if (CONFIG.googleScriptUrl && (!localUrl || localUrl !== CONFIG.googleScriptUrl)) {
       localStorage.setItem(this.KEYS.URL, CONFIG.googleScriptUrl);
+      localStorage.setItem(this.KEYS.ENABLED, CONFIG.syncEnabled);
+    } else {
+      // Khởi tạo mặc định nếu chưa từng lưu
+      if (localStorage.getItem(this.KEYS.ENABLED) === null) {
+        localStorage.setItem(this.KEYS.ENABLED, CONFIG.syncEnabled);
+      }
+      if (localStorage.getItem(this.KEYS.URL) === null) {
+        localStorage.setItem(this.KEYS.URL, CONFIG.googleScriptUrl);
+      }
     }
 
     // Add status indicator to top bar if it exists
