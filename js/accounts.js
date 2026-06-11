@@ -78,6 +78,8 @@ const Accounts = {
   openCreateModal() {
     document.getElementById('modal-account-title').textContent = 'Tạo tài khoản mới';
     document.getElementById('account-form').reset();
+    const usernameInput = document.getElementById('account-username');
+    if (usernameInput) usernameInput.disabled = false;
     document.getElementById('account-edit-id').value = '';
     document.getElementById('account-password-group').style.display = 'block';
     Utils.openModal('modal-account');
@@ -91,7 +93,11 @@ const Accounts = {
     document.getElementById('modal-account-title').textContent = 'Chỉnh sửa tài khoản';
     document.getElementById('account-edit-id').value = id;
     document.getElementById('account-fullname').value = account.fullName;
-    document.getElementById('account-username').value = account.username;
+    const usernameInput = document.getElementById('account-username');
+    if (usernameInput) {
+      usernameInput.value = account.username;
+      usernameInput.disabled = true;
+    }
     document.getElementById('account-position').value = account.position || '';
     document.getElementById('account-email').value = account.email || '';
     document.getElementById('account-phone').value = account.phone || '';

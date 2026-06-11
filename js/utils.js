@@ -195,6 +195,19 @@ const Utils = {
     return ['doc', 'docx'].includes(ext);
   },
 
+  // Download file helper (creates and triggers browser download of a blob)
+  downloadFile(fileName, content) {
+    const blob = new Blob([content || 'Nội dung file demo từ Cổng Thông Tin Điện Tử Hiệp Hòa'], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   // Animate number counter
   animateCounter(element, target, duration = 1000) {
     let start = 0;

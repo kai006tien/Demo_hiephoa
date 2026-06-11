@@ -22,7 +22,7 @@ const Notifications = {
 
     let html = '<div class="notif-list">';
     notifs.forEach(notif => {
-      const isUnread = role === 'user' && (!notif.readBy || !notif.readBy.includes(session.userId));
+      const isUnread = !notif.readBy || !notif.readBy.includes(session.userId);
       const priorityIcons = {
         normal: 'notif-item__icon--normal',
         important: 'notif-item__icon--important',
@@ -68,8 +68,8 @@ const Notifications = {
 
     const session = Auth.getSession();
 
-    // Mark as read for users
-    if (session.role === 'user') {
+    // Mark as read for users and admins
+    if (session) {
       if (!notif.readBy) notif.readBy = [];
       if (!notif.readBy.includes(session.userId)) {
         notif.readBy.push(session.userId);
@@ -80,6 +80,9 @@ const Notifications = {
           Storage.saveNotifications(notifs);
         }
         Notifications.updateBadge();
+        if (typeof renderNotifDropdown === 'function') {
+          renderNotifDropdown();
+        }
       }
     }
 
@@ -152,6 +155,7 @@ const Notifications = {
     Utils.closeModal('modal-notification');
     Notifications.renderNotificationList('admin');
     App.updateStats();
+    Notifications.updateBadge();
   },
 
   // Get unread count for current user
@@ -200,6 +204,9 @@ const Notifications = {
     Storage.saveNotifications(notifs);
     Notifications.updateBadge();
     Notifications.renderNotificationList(session.role);
+    if (typeof renderNotifDropdown === 'function') {
+      renderNotifDropdown();
+    }
     Utils.showToast('success', 'Thành công', 'Đã đánh dấu tất cả là đã đọc');
   }
 };

@@ -232,7 +232,8 @@ const Voting = {
     }
 
     // Prompt for comment
-    const comment = prompt('Nhập ý kiến (có thể bỏ trống):') || '';
+    const comment = prompt('Nhập ý kiến (có thể bỏ trống):');
+    if (comment === null) return; // Cancel voting action
 
     if (!vote.voters) vote.voters = [];
     vote.voters.push({
@@ -308,6 +309,7 @@ const Voting = {
     Utils.closeModal('modal-vote');
     Voting.renderVoteListAdmin();
     App.updateStats();
+    Notifications.updateBadge();
   },
 
   // Close vote

@@ -69,8 +69,13 @@ const Documents = {
           <div class="doc-item__actions" onclick="event.stopPropagation()">
             <span class="doc-status ${status.class}">${status.label}</span>
             ${role === 'admin' ? `
-              <button class="btn btn-ghost btn-sm" onclick="Documents.editDocument('${doc.id}')" data-tooltip="Chỉnh sửa">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              ${doc.status !== 'finalized' ? `
+                <button class="btn btn-ghost btn-sm" onclick="Documents.editDocument('${doc.id}')" data-tooltip="Chỉnh sửa">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              ` : ''}
+              <button class="btn btn-ghost btn-sm text-danger" onclick="Documents.deleteDocument('${doc.id}')" data-tooltip="Xóa">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
               ${doc.status === 'draft' ? `
                 <button class="btn btn-success btn-sm" onclick="Documents.publishDocument('${doc.id}')">Ban hành</button>
@@ -106,6 +111,13 @@ const Documents = {
     document.getElementById('modal-doc-title').textContent = 'Tạo văn bản mới';
     document.getElementById('doc-form').reset();
     document.getElementById('doc-edit-id').value = '';
+    
+    const currentFileEl = document.getElementById('doc-current-file');
+    if (currentFileEl) {
+      currentFileEl.textContent = '';
+      currentFileEl.style.display = 'none';
+    }
+
     Documents.renderPermissionCheckboxes();
     Utils.openModal('modal-document');
   },
@@ -150,6 +162,13 @@ const Documents = {
     document.getElementById('doc-edit-id').value = id;
     document.getElementById('doc-title-input').value = doc.title;
     document.getElementById('doc-desc-input').value = doc.description || '';
+    
+    const currentFileEl = document.getElementById('doc-current-file');
+    if (currentFileEl) {
+      currentFileEl.textContent = `File hiện tại: ${doc.fileName}`;
+      currentFileEl.style.display = 'block';
+    }
+
     Documents.renderPermissionCheckboxes(doc.permissions || {});
 
     Utils.openModal('modal-document');
@@ -178,7 +197,19 @@ const Documents = {
     });
 
     if (editId) {
-      Storage.updateDocument(editId, { title, description, permissions });
+      const doc = Storage.getDocuments().find(d => d.id === editId);
+      if (doc && doc.status === 'finalized') {
+        Utils.showToast('error', 'Lỗi', 'Không thể chỉnh sửa văn bản đã chốt');
+        return;
+      }
+      const fileInput = document.getElementById('doc-file-input');
+      const updates = { title, description, permissions };
+      if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        updates.fileName = file.name;
+        updates.fileSize = file.size;
+      }
+      Storage.updateDocument(editId, updates);
       Utils.showToast('success', 'Thành công', 'Đã cập nhật văn bản');
     } else {
       // Check for file upload
@@ -237,6 +268,7 @@ const Documents = {
 
       Documents.renderDocumentList('admin');
       App.updateStats();
+      Notifications.updateBadge();
     }
   },
 
@@ -294,14 +326,41 @@ const Documents = {
         ` : ''}
       `;
     }
+    const modal = document.getElementById('modal-doc-view');
+    const modalFooter = modal ? modal.querySelector('.modal__footer') : null;
+    if (modalFooter) {
+      modalFooter.innerHTML = `
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-doc-view')">Đóng</button>
+        <button class="btn btn-primary" onclick="Documents.downloadDocument('${doc.id}'); event.stopPropagation();">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Tải về máy
+        </button>
+      `;
+    }
+
     Utils.openModal('modal-doc-view');
   },
 
-  // Download document (simulated)
+  // Download document
   downloadDocument(id) {
     const doc = Storage.getDocuments().find(d => d.id === id);
     if (doc) {
-      Utils.showToast('info', 'Tải xuống', `Đang tải "${doc.fileName}"... (Demo)`);
+      Utils.showToast('info', 'Tải xuống', `Đang tải "${doc.fileName}"...`);
+      setTimeout(() => {
+        Utils.downloadFile(doc.fileName, `Tiêu đề văn bản: ${doc.title}\nMô tả: ${doc.description || 'Không có mô tả'}\nNgày tạo: ${Utils.formatDateTime(doc.createdAt)}\nTrạng thái: ${doc.status}`);
+      }, 500);
+    }
+  },
+
+  // Delete document
+  deleteDocument(id) {
+    const doc = Storage.getDocuments().find(d => d.id === id);
+    if (doc && confirm(`Bạn có chắc muốn xóa văn bản "${doc.title}"?`)) {
+      Storage.deleteDocument(id);
+      Utils.showToast('success', 'Đã xóa', `Đã xóa văn bản "${doc.title}"`);
+      const role = Auth.isAdmin() ? 'admin' : 'user';
+      Documents.renderDocumentList(role);
+      App.updateStats();
     }
   }
 };
