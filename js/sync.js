@@ -56,7 +56,7 @@ const Sync = {
     const syncHtml = `
       <span id="sync-status-container" style="display: none; align-items: center; gap: 6px; margin-left: 15px;">
         <span style="color: rgba(255,255,255,0.4);">|</span>
-        <span id="sync-status-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Nhấn để đồng bộ lại" onclick="Sync.backgroundSync()">
+        <span id="sync-status-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Nhấn để xem thông tin kết nối" onclick="Sync.showConnectionInfo()">
           <span class="sync-dot" id="sync-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block;"></span>
           <span id="sync-status-text">Đã đồng bộ</span>
         </span>
@@ -166,6 +166,7 @@ const Sync = {
         document.dispatchEvent(new CustomEvent('hha_data_synced'));
       }
       
+      this.lastSyncTime = new Date().toISOString();
       this.updateStatusUI('synced');
     } catch (e) {
       console.error('☁️ Sync error:', e);
@@ -347,5 +348,64 @@ const Sync = {
     }
   },
 
+  lastSyncTime: null,
+
+  showConnectionInfo() {
+    // Check if the modal already exists
+    let modal = document.getElementById('modal-sync-connection');
+    if (modal) modal.remove();
+
+    const formattedTime = this.lastSyncTime ? Utils.formatDateTime(this.lastSyncTime) : 'Chưa đồng bộ';
+    const serverUrl = window.location.origin;
+
+    const modalHtml = `
+      <div class="modal-overlay active" id="modal-sync-connection" style="z-index: 9999; display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+        <div class="modal animate-fadeInUp" style="max-width: 450px; background: var(--color-surface, #ffffff); border-radius: var(--radius-lg, 12px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); width: 90%; overflow: hidden; display: flex; flex-direction: column;">
+          <div class="modal__header" style="border-bottom: 1px solid var(--color-divider, #e2e8f0); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="modal__title" style="display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0; font-weight: 600; color: var(--color-text, #1e293b);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Thông tin kết nối hệ thống
+            </h3>
+            <button class="modal__close" onclick="document.getElementById('modal-sync-connection').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--color-text-muted, #64748b); line-height: 1;">&times;</button>
+          </div>
+          <div class="modal__body" style="padding: 20px; font-size: 14px;">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
+                <span style="color: var(--color-text-secondary, #475569);">Địa chỉ máy chủ:</span>
+                <strong style="color: var(--color-text, #1e293b);">${serverUrl}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
+                <span style="color: var(--color-text-secondary, #475569);">Đường truyền mạng:</span>
+                <strong style="color: #10B981;">Đang trực tuyến</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
+                <span style="color: var(--color-text-secondary, #475569);">Tần suất tự động đồng bộ:</span>
+                <strong style="color: var(--color-primary, #2b5797);">4 giây / lần (Đang chạy)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
+                <span style="color: var(--color-text-secondary, #475569);">Đồng bộ lần cuối:</span>
+                <strong style="color: var(--color-text, #1e293b);">${formattedTime}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
+                <span style="color: var(--color-text-secondary, #475569);">Mã Token truy cập:</span>
+                <strong style="color: var(--color-text-muted, #64748b); font-family: monospace;">HiepHoaSecret2026</strong>
+              </div>
+            </div>
+          </div>
+          <div class="modal__footer" style="border-top: 1px solid var(--color-divider, #e2e8f0); padding: 12px 20px; display: flex; justify-content: flex-end; gap: 10px; background: var(--color-surface-hover, #f8fafc);">
+            <button class="btn btn-secondary" onclick="document.getElementById('modal-sync-connection').remove()" style="padding: 6px 12px; font-size: 13px;">Đóng</button>
+            <button class="btn btn-primary" onclick="document.getElementById('modal-sync-connection').remove(); Sync.backgroundSync(false);" style="padding: 6px 12px; font-size: 13px;">Đồng bộ ngay</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Close on overlay click
+    const overlay = document.getElementById('modal-sync-connection');
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
   }
 };
