@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Người dùng - Cổng Thông Tin Điện Tử</title>
+  <meta name="description" content="Trang người dùng - Cổng Thông Tin Điện Tử">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/documents.css">
+  <link rel="stylesheet" href="css/voting.css">
+  <link rel="stylesheet" href="css/notifications.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+</head>
+<body>
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="top-bar__time">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="realtime-clock">00:00:00</span>
+      <span>|</span>
+      <span id="top-bar-date"></span>
+    </div>
+    <div>Cổng Thông Tin Điện Tử</div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="d-flex items-center gap-4">
+      <button class="hamburger-btn" id="hamburger-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="header__brand">
+        <svg class="header__logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#d4a017" stroke-width="3"/>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="#f0c040" stroke-width="1.5"/>
+          <polygon points="50,18 56,38 78,38 60,50 67,70 50,57 33,70 40,50 22,38 44,38" fill="#f0c040" stroke="#d4a017" stroke-width="1"/>
+          <path d="M20 75 Q35 60 45 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+          <path d="M80 75 Q65 60 55 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        </svg>
+        <div class="header__title">
+          <span class="header__title-main">Cổng Thông Tin Điện Tử</span>
+          <span class="header__title-sub">HỆ THỐNG QUẢN TRỊ NỘI BỘ</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header__actions">
+      <div class="header__notification-btn" style="position:relative" onclick="toggleNotifDropdown()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notification-badge" id="notif-badge-header" style="display:none">0</span>
+        <div class="notif-dropdown" id="notif-dropdown">
+          <div class="notif-dropdown__header">
+            <span class="notif-dropdown__title">Thông báo</span>
+            <button class="btn btn-ghost btn-sm" onclick="Notifications.markAllRead();event.stopPropagation();">Đọc tất cả</button>
+          </div>
+          <div class="notif-dropdown__list" id="notif-dropdown-list"></div>
+          <div class="notif-dropdown__footer">
+            <a href="#" onclick="App.navigateTo('notifications');closeNotifDropdown();event.preventDefault();">Xem tất cả →</a>
+          </div>
+        </div>
+      </div>
+      <div class="header__user">
+        <div class="header__avatar" id="header-avatar">NV</div>
+        <div class="header__user-info">
+          <span class="header__user-name" id="header-user-name">Người dùng</span>
+          <span class="header__user-role" id="header-user-role">Nhân viên</span>
+        </div>
+      </div>
+      <a href="#" id="logout-btn" class="btn btn-ghost" style="color:rgba(255,255,255,0.8);font-size:13px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Đăng xuất
+      </a>
+    </div>
+  </header>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar__nav">
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Chức năng</div>
+          <div class="sidebar__item active" data-section="dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Trang chủ</span>
+          </div>
+          <div class="sidebar__item" data-section="documents">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Văn bản</span>
+          </div>
+          <div class="sidebar__item" data-section="voting">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>
+            <span>Biểu quyết</span>
+          </div>
+          <div class="sidebar__item" data-section="notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>Thông báo</span>
+            <span class="sidebar__item-badge" id="sidebar-notif-badge" style="display:none">0</span>
+          </div>
+          <div class="sidebar__item" data-section="files">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Tải file / Báo cáo</span>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- DASHBOARD -->
+      <section class="content-section active" id="section-dashboard">
+        <div class="welcome-banner animate-fadeInUp">
+          <div class="welcome-banner__title"><span id="greeting-text">Xin chào</span>, <span id="welcome-name">Bạn</span>! 👋</div>
+          <div class="welcome-banner__text">Chào mừng bạn đến với hệ thống quản trị nội bộ.</div>
+          <div class="welcome-banner__date" id="current-date-text"></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card stat-card--primary" onclick="App.navigateTo('documents')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-my-docs">0</div><div class="stat-card__label">Văn bản của tôi</div></div>
+          </div>
+          <div class="stat-card stat-card--success" onclick="App.navigateTo('voting')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-my-votes">0</div><div class="stat-card__label">Biểu quyết đang mở</div></div>
+          </div>
+          <div class="stat-card stat-card--warning" onclick="App.navigateTo('notifications')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-my-notifs">0</div><div class="stat-card__label">Thông báo chưa đọc</div></div>
+          </div>
+          <div class="stat-card stat-card--info" onclick="App.navigateTo('files')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-my-files">0</div><div class="stat-card__label">File đã gửi</div></div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card__header"><div class="card__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Hoạt động gần đây</div></div>
+            <div class="card__body"><div class="activity-list" id="recent-activity"></div></div>
+          </div>
+          <div class="card">
+            <div class="card__header"><div class="card__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Thao tác nhanh</div></div>
+            <div class="card__body">
+              <div class="quick-actions">
+                <div class="quick-action-btn" onclick="App.navigateTo('documents')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span>Xem văn bản</span>
+                </div>
+                <div class="quick-action-btn" onclick="App.navigateTo('voting')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>
+                  <span>Biểu quyết</span>
+                </div>
+                <div class="quick-action-btn" onclick="App.navigateTo('notifications')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+                  <span>Thông báo</span>
+                </div>
+                <div class="quick-action-btn" onclick="App.navigateTo('files')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Gửi báo cáo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DOCUMENTS -->
+      <section class="content-section" id="section-documents">
+        <div class="main-content__header">
+          <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Văn bản</h2>
+        </div>
+        <div id="documents-list"></div>
+      </section>
+
+      <!-- VOTING -->
+      <section class="content-section" id="section-voting">
+        <div class="main-content__header">
+          <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg> Biểu quyết</h2>
+        </div>
+        <div id="votes-list"></div>
+      </section>
+
+      <!-- NOTIFICATIONS -->
+      <section class="content-section" id="section-notifications">
+        <div class="main-content__header">
+          <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Thông báo</h2>
+          <button class="btn btn-secondary btn-sm" onclick="Notifications.markAllRead()">Đánh dấu đã đọc tất cả</button>
+        </div>
+        <div class="card"><div class="card__body" id="notifications-list"></div></div>
+      </section>
+
+      <!-- FILES -->
+      <section class="content-section" id="section-files">
+        <div class="main-content__header">
+          <h2 class="main-content__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Tải file / Báo cáo</h2>
+        </div>
+        <div id="files-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">© 2026 Cổng Thông Tin Điện Tử - Hệ thống Quản trị Nội bộ</footer>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Document View Modal -->
+  <div class="modal-overlay" id="modal-doc-view">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h3 class="modal__title">Chi tiết văn bản</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-doc-view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body" id="modal-doc-view-body"></div>
+      <div class="modal__footer"><button class="btn btn-secondary" onclick="Utils.closeModal('modal-doc-view')">Đóng</button></div>
+    </div>
+  </div>
+
+  <!-- Notification View Modal -->
+  <div class="modal-overlay" id="modal-notif-view">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title">Chi tiết thông báo</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-notif-view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body" id="modal-notif-view-body"></div>
+      <div class="modal__footer"><button class="btn btn-secondary" onclick="Utils.closeModal('modal-notif-view')">Đóng</button></div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/voting.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/filemanager.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById('top-bar-date').textContent = Utils.getVietnameseDay();
+
+    function toggleNotifDropdown() {
+      const dd = document.getElementById('notif-dropdown');
+      dd.classList.toggle('active');
+      if (dd.classList.contains('active')) renderNotifDropdown();
+    }
+    function closeNotifDropdown() {
+      document.getElementById('notif-dropdown').classList.remove('active');
+    }
+    function renderNotifDropdown() {
+      const notifs = Storage.getNotifications().slice(0, 5);
+      const session = Auth.getSession();
+      const list = document.getElementById('notif-dropdown-list');
+      list.innerHTML = notifs.map(n => {
+        const isUnread = !n.readBy || !n.readBy.includes(session.userId);
+        return `
+          <div class="notif-item ${isUnread ? 'unread' : ''}" style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-divider);cursor:pointer;" onclick="Notifications.viewNotification('${n.id}');closeNotifDropdown();">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:${isUnread ? '600' : '400'};color:var(--color-text);margin-bottom:2px;">${Utils.escapeHtml(Utils.truncate(n.title, 40))}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);">${Utils.timeAgo(n.createdAt)}</div>
+            </div>
+          </div>`;
+      }).join('') || '<div style="padding:var(--space-6);text-align:center;color:var(--color-text-muted);font-size:13px;">Không có thông báo</div>';
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.header__notification-btn')) closeNotifDropdown();
+    });
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) { overlay.classList.remove('active'); document.body.style.overflow = ''; }
+      });
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') Utils.closeAllModals(); });
+
+    App.init('user');
+  </script>
+</body>
+</html>

@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản trị - Cổng Thông Tin Điện Tử</title>
+  <meta name="description" content="Trang quản trị hệ thống - Cổng Thông Tin Điện Tử">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/documents.css">
+  <link rel="stylesheet" href="css/voting.css">
+  <link rel="stylesheet" href="css/notifications.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+</head>
+<body>
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="top-bar__time">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="realtime-clock">00:00:00</span>
+      <span>|</span>
+      <span id="top-bar-date"></span>
+    </div>
+    <div>Cổng Thông Tin Điện Tử - Hệ thống Quản trị</div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="d-flex items-center gap-4">
+      <button class="hamburger-btn" id="hamburger-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="header__brand">
+        <svg class="header__logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#d4a017" stroke-width="3"/>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="#f0c040" stroke-width="1.5"/>
+          <polygon points="50,18 56,38 78,38 60,50 67,70 50,57 33,70 40,50 22,38 44,38" fill="#f0c040" stroke="#d4a017" stroke-width="1"/>
+          <path d="M20 75 Q35 60 45 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+          <path d="M80 75 Q65 60 55 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        </svg>
+        <div class="header__title">
+          <span class="header__title-main">Cổng Thông Tin Điện Tử</span>
+          <span class="header__title-sub">HỆ THỐNG QUẢN TRỊ NỘI BỘ</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header__actions">
+      <div class="header__notification-btn" style="position:relative" onclick="toggleNotifDropdown()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notification-badge" id="notif-badge-header" style="display:none">0</span>
+        <!-- Notification Dropdown -->
+        <div class="notif-dropdown" id="notif-dropdown">
+          <div class="notif-dropdown__header">
+            <span class="notif-dropdown__title">Thông báo</span>
+            <button class="btn btn-ghost btn-sm" onclick="Notifications.markAllRead();event.stopPropagation();">Đọc tất cả</button>
+          </div>
+          <div class="notif-dropdown__list" id="notif-dropdown-list"></div>
+          <div class="notif-dropdown__footer">
+            <a href="#" onclick="App.navigateTo('notifications');closeNotifDropdown();event.preventDefault();">Xem tất cả thông báo →</a>
+          </div>
+        </div>
+      </div>
+      <div class="header__user">
+        <div class="header__avatar" id="header-avatar">QT</div>
+        <div class="header__user-info">
+          <span class="header__user-name" id="header-user-name">Admin</span>
+          <span class="header__user-role" id="header-user-role">Quản trị viên</span>
+        </div>
+      </div>
+      <a href="#" id="logout-btn" class="btn btn-ghost" style="color:rgba(255,255,255,0.8);font-size:13px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Đăng xuất
+      </a>
+    </div>
+  </header>
+
+  <!-- Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Main Layout -->
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar__nav">
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Điều hướng</div>
+          <div class="sidebar__item active" data-section="dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Trang chủ</span>
+          </div>
+          <div class="sidebar__item" data-section="documents">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Văn bản</span>
+          </div>
+          <div class="sidebar__item" data-section="voting">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            <span>Biểu quyết</span>
+          </div>
+          <div class="sidebar__item" data-section="notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>Thông báo</span>
+            <span class="sidebar__item-badge" id="sidebar-notif-badge" style="display:none">0</span>
+          </div>
+          <div class="sidebar__item" data-section="files">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Báo cáo / File</span>
+          </div>
+        </div>
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Quản lý</div>
+          <div class="sidebar__item" data-section="accounts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Quản lý tài khoản</span>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- DASHBOARD SECTION -->
+      <section class="content-section active" id="section-dashboard">
+        <div class="welcome-banner animate-fadeInUp">
+          <div class="welcome-banner__title"><span id="greeting-text">Chào buổi sáng</span>, <span id="welcome-name">Admin</span>! 👋</div>
+          <div class="welcome-banner__text">Chào mừng bạn quay trở lại hệ thống quản trị.</div>
+          <div class="welcome-banner__date" id="current-date-text"></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card stat-card--primary" onclick="App.navigateTo('documents')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-documents">0</div><div class="stat-card__label">Văn bản</div></div>
+          </div>
+          <div class="stat-card stat-card--success" onclick="App.navigateTo('voting')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-votes">0</div><div class="stat-card__label">Biểu quyết đang mở</div></div>
+          </div>
+          <div class="stat-card stat-card--warning" onclick="App.navigateTo('notifications')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-notifications">0</div><div class="stat-card__label">Thông báo</div></div>
+          </div>
+          <div class="stat-card stat-card--info" onclick="App.navigateTo('accounts')">
+            <div class="stat-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+            <div class="stat-card__content"><div class="stat-card__value" id="stat-accounts">0</div><div class="stat-card__label">Tài khoản</div></div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card__header">
+              <div class="card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Hoạt động gần đây
+              </div>
+            </div>
+            <div class="card__body">
+              <div class="activity-list" id="recent-activity"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__header">
+              <div class="card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Thao tác nhanh
+              </div>
+            </div>
+            <div class="card__body">
+              <div class="quick-actions">
+                <div class="quick-action-btn" onclick="Documents.openCreateModal()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                  <span>Tạo văn bản</span>
+                </div>
+                <div class="quick-action-btn" onclick="Voting.openCreateModal()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>
+                  <span>Tạo biểu quyết</span>
+                </div>
+                <div class="quick-action-btn" onclick="Notifications.openCreateModal()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><line x1="12" y1="2" x2="12" y2="5"/></svg>
+                  <span>Gửi thông báo</span>
+                </div>
+                <div class="quick-action-btn" onclick="Accounts.openCreateModal()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                  <span>Tạo tài khoản</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DOCUMENTS SECTION -->
+      <section class="content-section" id="section-documents">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Quản lý Văn bản
+          </h2>
+          <button class="btn btn-primary" onclick="Documents.openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tạo văn bản
+          </button>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn doc-filter-btn active" data-filter="all" onclick="Documents.setFilter('all')">Tất cả</button>
+          <button class="filter-btn doc-filter-btn" data-filter="draft" onclick="Documents.setFilter('draft')">Nháp</button>
+          <button class="filter-btn doc-filter-btn" data-filter="published" onclick="Documents.setFilter('published')">Đã ban hành</button>
+          <button class="filter-btn doc-filter-btn" data-filter="finalized" onclick="Documents.setFilter('finalized')">Đã chốt</button>
+        </div>
+        <div id="documents-list"></div>
+      </section>
+
+      <!-- VOTING SECTION -->
+      <section class="content-section" id="section-voting">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>
+            Biểu quyết
+          </h2>
+          <button class="btn btn-primary" onclick="Voting.openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tạo biểu quyết
+          </button>
+        </div>
+        <div id="votes-list"></div>
+      </section>
+
+      <!-- NOTIFICATIONS SECTION -->
+      <section class="content-section" id="section-notifications">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Thông báo
+          </h2>
+          <button class="btn btn-primary" onclick="Notifications.openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tạo thông báo
+          </button>
+        </div>
+        <div class="card"><div class="card__body" id="notifications-list"></div></div>
+      </section>
+
+      <!-- FILES SECTION -->
+      <section class="content-section" id="section-files">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Báo cáo / File
+          </h2>
+        </div>
+        <div id="files-list"></div>
+      </section>
+
+      <!-- ACCOUNTS SECTION -->
+      <section class="content-section" id="section-accounts">
+        <div class="main-content__header">
+          <h2 class="main-content__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Quản lý Tài khoản
+          </h2>
+          <div class="d-flex gap-3">
+            <div class="search-bar">
+              <svg class="search-bar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="search-bar__input" type="text" placeholder="Tìm kiếm tài khoản..." oninput="Accounts.searchAccounts(this.value)">
+            </div>
+            <button class="btn btn-primary" onclick="Accounts.openCreateModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Tạo tài khoản
+            </button>
+          </div>
+        </div>
+        <div id="accounts-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    © 2026 Cổng Thông Tin Điện Tử - Hệ thống Quản trị Nội bộ | Phiên bản 1.0
+  </footer>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- MODALS -->
+  <!-- Account Modal -->
+  <div class="modal-overlay" id="modal-account">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title" id="modal-account-title">Tạo tài khoản mới</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-account')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <form id="account-form" onsubmit="event.preventDefault();Accounts.saveAccount();">
+          <input type="hidden" id="account-edit-id">
+          <div class="form-group">
+            <label class="form-label">Họ và tên <span class="required">*</span></label>
+            <input class="form-input" type="text" id="account-fullname" placeholder="VD: Nguyễn Văn D" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tên đăng nhập <span class="required">*</span></label>
+            <input class="form-input" type="text" id="account-username" placeholder="VD: nguyenvand" required>
+          </div>
+          <div class="form-group" id="account-password-group">
+            <label class="form-label">Mật khẩu <span class="required">*</span></label>
+            <input class="form-input" type="password" id="account-password" placeholder="Nhập mật khẩu">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chức vụ</label>
+            <input class="form-input" type="text" id="account-position" placeholder="VD: Chuyên viên phòng HC">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" id="account-email" placeholder="VD: email@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Số điện thoại</label>
+            <input class="form-input" type="tel" id="account-phone" placeholder="VD: 0912345678">
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-account')">Hủy</button>
+        <button class="btn btn-primary" onclick="Accounts.saveAccount()">Lưu tài khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document Modal -->
+  <div class="modal-overlay" id="modal-document">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h3 class="modal__title" id="modal-doc-title">Tạo văn bản mới</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-document')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <form id="doc-form" onsubmit="event.preventDefault();Documents.saveDocument();">
+          <input type="hidden" id="doc-edit-id">
+          <div class="form-group">
+            <label class="form-label">Tiêu đề văn bản <span class="required">*</span></label>
+            <input class="form-input" type="text" id="doc-title-input" placeholder="Nhập tiêu đề văn bản" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả</label>
+            <textarea class="form-textarea" id="doc-desc-input" placeholder="Nhập mô tả ngắn về văn bản"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Đính kèm file</label>
+            <input class="form-input" type="file" id="doc-file-input" accept=".doc,.docx" style="padding-top:8px;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phân quyền truy cập</label>
+            <div class="card" style="border:1px solid var(--color-border);">
+              <div class="card__body" style="padding:var(--space-3);" id="doc-permissions-list"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-document')">Hủy</button>
+        <button class="btn btn-primary" onclick="Documents.saveDocument()">Lưu văn bản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document View Modal -->
+  <div class="modal-overlay" id="modal-doc-view">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h3 class="modal__title">Chi tiết văn bản</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-doc-view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body" id="modal-doc-view-body"></div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-doc-view')">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vote Modal -->
+  <div class="modal-overlay" id="modal-vote">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title">Tạo biểu quyết mới</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-vote')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <form id="vote-form" onsubmit="event.preventDefault();Voting.saveVote();">
+          <div class="form-group">
+            <label class="form-label">Tiêu đề biểu quyết <span class="required">*</span></label>
+            <input class="form-input" type="text" id="vote-title-input" placeholder="VD: Phê duyệt kế hoạch..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nội dung chi tiết</label>
+            <textarea class="form-textarea" id="vote-desc-input" placeholder="Mô tả nội dung biểu quyết" style="min-height:120px;"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-vote')">Hủy</button>
+        <button class="btn btn-success" onclick="Voting.saveVote()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>
+          Phát biểu quyết
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Modal -->
+  <div class="modal-overlay" id="modal-notification">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title">Gửi thông báo mới</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-notification')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <form id="notif-form" onsubmit="event.preventDefault();Notifications.saveNotification();">
+          <input type="hidden" id="notif-priority-input" value="normal">
+          <div class="form-group">
+            <label class="form-label">Tiêu đề <span class="required">*</span></label>
+            <input class="form-input" type="text" id="notif-title-input" placeholder="Nhập tiêu đề thông báo" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nội dung <span class="required">*</span></label>
+            <textarea class="form-textarea" id="notif-content-input" placeholder="Nhập nội dung thông báo" style="min-height:120px;" required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mức độ</label>
+            <div class="priority-select">
+              <div class="priority-option active" data-priority="normal" onclick="Notifications.setPriority('normal')">📋 Bình thường</div>
+              <div class="priority-option" data-priority="important" onclick="Notifications.setPriority('important')">⚠️ Quan trọng</div>
+              <div class="priority-option" data-priority="urgent" onclick="Notifications.setPriority('urgent')">🔴 Khẩn cấp</div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-notification')">Hủy</button>
+        <button class="btn btn-primary" onclick="Notifications.saveNotification()">Gửi thông báo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification View Modal -->
+  <div class="modal-overlay" id="modal-notif-view">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title">Chi tiết thông báo</h3>
+        <button class="modal__close" onclick="Utils.closeModal('modal-notif-view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal__body" id="modal-notif-view-body"></div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" onclick="Utils.closeModal('modal-notif-view')">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/utils.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/voting.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/filemanager.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Initialize top bar date
+    document.getElementById('top-bar-date').textContent = Utils.getVietnameseDay();
+
+    // Notification dropdown
+    function toggleNotifDropdown() {
+      const dd = document.getElementById('notif-dropdown');
+      dd.classList.toggle('active');
+      if (dd.classList.contains('active')) {
+        renderNotifDropdown();
+      }
+    }
+    function closeNotifDropdown() {
+      document.getElementById('notif-dropdown').classList.remove('active');
+    }
+    function renderNotifDropdown() {
+      const notifs = Storage.getNotifications().slice(0, 5);
+      const list = document.getElementById('notif-dropdown-list');
+      const session = Auth.getSession();
+      list.innerHTML = notifs.map(n => {
+        const isUnread = !n.readBy || !n.readBy.includes(session.userId);
+        return `
+          <div class="notif-item ${isUnread ? 'unread' : ''}" style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-divider);cursor:pointer;" onclick="Notifications.viewNotification('${n.id}');closeNotifDropdown();">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:${isUnread ? '600' : '400'};color:var(--color-text);margin-bottom:2px;">${Utils.escapeHtml(Utils.truncate(n.title, 40))}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);">${Utils.timeAgo(n.createdAt)}</div>
+            </div>
+          </div>`;
+      }).join('') || '<div style="padding:var(--space-6);text-align:center;color:var(--color-text-muted);font-size:13px;">Không có thông báo</div>';
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.header__notification-btn')) {
+        closeNotifDropdown();
+      }
+    });
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.classList.remove('active');
+          document.body.style.overflow = '';
+        }
+      });
+    });
+
+    // ESC to close modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') Utils.closeAllModals();
+    });
+
+    // Init app
+    App.init('admin');
+  </script>
+</body>
+</html>

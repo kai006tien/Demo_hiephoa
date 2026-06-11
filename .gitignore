@@ -1,0 +1,16 @@
+# Windows thumbnail cache files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Folder config files
+$RECYCLE.BIN/
+
+# VS Code settings (optional, but usually ignored or kept depending on preferences)
+.vscode/
+
+# Temporary files
+*.log
+*.tmp
+tmp/
+temp/

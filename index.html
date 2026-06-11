@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đăng nhập - Cổng Thông Tin Điện Tử</title>
+  <meta name="description" content="Hệ thống quản trị nội bộ - Cổng Thông Tin Điện Tử Hiệp Hòa">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/login.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+</head>
+<body>
+  <div class="login-page">
+    <!-- Header -->
+    <div class="login-header animate-fadeInDown">
+      <svg class="login-header__logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#d4a017" stroke-width="3"/>
+        <circle cx="50" cy="50" r="38" fill="none" stroke="#f0c040" stroke-width="1.5"/>
+        <!-- Star -->
+        <polygon points="50,18 56,38 78,38 60,50 67,70 50,57 33,70 40,50 22,38 44,38" fill="#f0c040" stroke="#d4a017" stroke-width="1"/>
+        <!-- Gear teeth -->
+        <path d="M50 8 L53 15 L47 15Z" fill="#d4a017"/>
+        <path d="M50 92 L53 85 L47 85Z" fill="#d4a017"/>
+        <path d="M8 50 L15 53 L15 47Z" fill="#d4a017"/>
+        <path d="M92 50 L85 53 L85 47Z" fill="#d4a017"/>
+        <!-- Rice stalks -->
+        <path d="M20 75 Q35 60 45 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        <path d="M80 75 Q65 60 55 80" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+      </svg>
+      <h1 class="login-header__title">Cổng Thông Tin Điện Tử</h1>
+      <p class="login-header__subtitle">HỆ THỐNG QUẢN TRỊ NỘI BỘ</p>
+    </div>
+
+    <!-- Login Form -->
+    <div class="login-container">
+      <div class="login-card">
+        <h2 class="login-card__title">Đăng nhập</h2>
+        <p class="login-card__desc">Vui lòng nhập thông tin tài khoản để truy cập hệ thống</p>
+
+        <div class="login-error" id="login-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <span id="login-error-text"></span>
+        </div>
+
+        <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="login-username">Tên đăng nhập</label>
+            <div class="input-icon-wrapper">
+              <input class="form-input" type="text" id="login-username" placeholder="Nhập tên đăng nhập" required autocomplete="username">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="login-password">Mật khẩu</label>
+            <div class="input-icon-wrapper">
+              <input class="form-input" type="password" id="login-password" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <button type="button" class="password-toggle" onclick="togglePassword()" id="password-toggle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-login" id="btn-login">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            ĐĂNG NHẬP
+          </button>
+        </form>
+
+        <div style="margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-divider); text-align: center;">
+          <p style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">Tài khoản demo:</p>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <code style="background: var(--color-bg); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;" onclick="fillDemo('admin','admin123')" title="Nhấn để điền">👑 admin / admin123</code>
+            <code style="background: var(--color-bg); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;" onclick="fillDemo('nguyenvana','123456')" title="Nhấn để điền">👤 nguyenvana / 123456</code>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="login-footer">
+      © 2026 Cổng Thông Tin Điện Tử - Hệ thống Quản trị Nội bộ
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Initialize default data
+    Storage.initializeDefaultData();
+
+    // If already logged in, redirect
+    if (Auth.isLoggedIn()) {
+      const session = Auth.getSession();
+      window.location.href = session.role === 'admin' ? 'admin.html' : 'user.html';
+    }
+
+    // Handle login
+    function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      const result = Auth.login(username, password);
+      
+      if (result.success) {
+        const btn = document.getElementById('btn-login');
+        btn.innerHTML = '<span class="animate-spin" style="display:inline-block;">⏳</span> Đang đăng nhập...';
+        btn.disabled = true;
+
+        setTimeout(() => {
+          window.location.href = result.session.role === 'admin' ? 'admin.html' : 'user.html';
+        }, 600);
+      } else {
+        const errorEl = document.getElementById('login-error');
+        const errorText = document.getElementById('login-error-text');
+        errorText.textContent = result.message;
+        errorEl.classList.add('show');
+        
+        // Shake animation
+        const card = document.querySelector('.login-card');
+        card.style.animation = 'none';
+        card.offsetHeight;
+        card.style.animation = '';
+      }
+    }
+
+    // Toggle password visibility
+    function togglePassword() {
+      const input = document.getElementById('login-password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    // Fill demo credentials
+    function fillDemo(username, password) {
+      document.getElementById('login-username').value = username;
+      document.getElementById('login-password').value = password;
+      document.getElementById('login-error').classList.remove('show');
+    }
+
+    // Focus on username input
+    document.getElementById('login-username').focus();
+  </script>
+</body>
+</html>
