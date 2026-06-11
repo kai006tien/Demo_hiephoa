@@ -78,6 +78,7 @@ const Notifications = {
         if (idx !== -1) {
           notifs[idx] = notif;
           Storage.saveNotifications(notifs);
+          if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Notifications', notif);
         }
         Notifications.updateBadge();
         if (typeof renderNotifDropdown === 'function') {
@@ -202,6 +203,7 @@ const Notifications = {
       }
     });
     Storage.saveNotifications(notifs);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Notifications', notifs);
     Notifications.updateBadge();
     Notifications.renderNotificationList(session.role);
     if (typeof renderNotifDropdown === 'function') {

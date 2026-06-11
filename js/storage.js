@@ -46,7 +46,6 @@ const Storage = {
 
   saveAccounts(accounts) {
     Storage.set(Storage.KEYS.ACCOUNTS, accounts);
-    if (typeof Sync !== 'undefined') Sync.syncSheet('Accounts', accounts);
   },
 
   getAccountById(id) {
@@ -61,6 +60,7 @@ const Storage = {
     const accounts = Storage.getAccounts();
     accounts.push(account);
     Storage.saveAccounts(accounts);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Accounts', account);
     return account;
   },
 
@@ -70,6 +70,7 @@ const Storage = {
     if (index !== -1) {
       accounts[index] = { ...accounts[index], ...updates };
       Storage.saveAccounts(accounts);
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Accounts', accounts[index]);
       return accounts[index];
     }
     return null;
@@ -78,6 +79,7 @@ const Storage = {
   deleteAccount(id) {
     const accounts = Storage.getAccounts().filter(a => a.id !== id);
     Storage.saveAccounts(accounts);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('delete', 'Accounts', { id });
   },
 
   // === DOCUMENTS ===
@@ -87,13 +89,13 @@ const Storage = {
 
   saveDocuments(docs) {
     Storage.set(Storage.KEYS.DOCUMENTS, docs);
-    if (typeof Sync !== 'undefined') Sync.syncSheet('Documents', docs);
   },
 
   addDocument(doc) {
     const docs = Storage.getDocuments();
     docs.unshift(doc);
     Storage.saveDocuments(docs);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Documents', doc);
     return doc;
   },
 
@@ -103,6 +105,7 @@ const Storage = {
     if (index !== -1) {
       docs[index] = { ...docs[index], ...updates };
       Storage.saveDocuments(docs);
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Documents', docs[index]);
       return docs[index];
     }
     return null;
@@ -111,6 +114,7 @@ const Storage = {
   deleteDocument(id) {
     const docs = Storage.getDocuments().filter(d => d.id !== id);
     Storage.saveDocuments(docs);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('delete', 'Documents', { id });
   },
 
   // === VOTES ===
@@ -120,13 +124,13 @@ const Storage = {
 
   saveVotes(votes) {
     Storage.set(Storage.KEYS.VOTES, votes);
-    if (typeof Sync !== 'undefined') Sync.syncSheet('Votes', votes);
   },
 
   addVote(vote) {
     const votes = Storage.getVotes();
     votes.unshift(vote);
     Storage.saveVotes(votes);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Votes', vote);
     return vote;
   },
 
@@ -136,6 +140,7 @@ const Storage = {
     if (index !== -1) {
       votes[index] = { ...votes[index], ...updates };
       Storage.saveVotes(votes);
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Votes', votes[index]);
       return votes[index];
     }
     return null;
@@ -148,13 +153,13 @@ const Storage = {
 
   saveNotifications(notifs) {
     Storage.set(Storage.KEYS.NOTIFICATIONS, notifs);
-    if (typeof Sync !== 'undefined') Sync.syncSheet('Notifications', notifs);
   },
 
   addNotification(notif) {
     const notifs = Storage.getNotifications();
     notifs.unshift(notif);
     Storage.saveNotifications(notifs);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Notifications', notif);
     return notif;
   },
 
@@ -165,7 +170,6 @@ const Storage = {
 
   saveFiles(files) {
     Storage.set(Storage.KEYS.FILES, files);
-    if (typeof Sync !== 'undefined') Sync.syncSheet('Files', files);
   },
 
   addFile(file) {
@@ -178,6 +182,7 @@ const Storage = {
   deleteFile(id) {
     const files = Storage.getFiles().filter(f => f.id !== id);
     Storage.saveFiles(files);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('delete', 'Files', { id });
   },
 
   // === SESSION ===

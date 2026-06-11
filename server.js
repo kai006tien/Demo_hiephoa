@@ -368,10 +368,57 @@ app.get('/api/sync', checkToken, async (req, res) => {
 
 // POST /api/sync - Handles sync, syncAll, and uploadFile actions
 app.post('/api/sync', checkToken, async (req, res) => {
-  const { action, sheet, rows, data, fileName, mimeType, base64, uploadedBy, description } = req.body;
+  const { action, sheet, rows, data, fileName, mimeType, base64, uploadedBy, description, mutationType, item } = req.body;
 
   try {
     if (isMongoConnected) {
+      if (action === 'mutation') {
+        let Model;
+        if (sheet === 'Accounts') Model = AccountModel;
+        else if (sheet === 'Documents') Model = DocumentModel;
+        else if (sheet === 'Votes') Model = VoteModel;
+        else if (sheet === 'Notifications') Model = NotificationModel;
+        else if (sheet === 'Files') Model = FileModel;
+
+        if (!Model) {
+          return res.status(400).json({ error: 'Mô hình dữ liệu không hợp lệ.' });
+        }
+
+        if (mutationType === 'upsert') {
+          if (!item) {
+            return res.status(400).json({ error: 'Thiếu dữ liệu.' });
+          }
+          const items = Array.isArray(item) ? item : [item];
+          for (const it of items) {
+            if (it.id) {
+              // Preserve fileData for files if client sends empty fileData
+              if (sheet === 'Files' && !it.fileData) {
+                const existing = await FileModel.findOne({ id: it.id });
+                if (existing && existing.fileData) {
+                  it.fileData = existing.fileData;
+                }
+              }
+              await Model.findOneAndUpdate(
+                { id: it.id },
+                { $set: it },
+                { upsert: true, new: true }
+              );
+            }
+          }
+          return res.json({ success: true, message: `Upserted item(s) in ${sheet}` });
+        } else if (mutationType === 'delete') {
+          if (!item) {
+            return res.status(400).json({ error: 'Thiếu dữ liệu cần xóa.' });
+          }
+          const items = Array.isArray(item) ? item : [item];
+          const ids = items.map(it => it.id).filter(Boolean);
+          if (ids.length > 0) {
+            await Model.deleteMany({ id: { $in: ids } });
+          }
+          return res.json({ success: true, message: `Deleted item(s) in ${sheet}` });
+        }
+      }
+
       if (action === 'sync') {
         if (sheet === 'Accounts') {
           await AccountModel.deleteMany({});
@@ -386,20 +433,23 @@ app.post('/api/sync', checkToken, async (req, res) => {
           await NotificationModel.deleteMany({});
           if (rows && rows.length > 0) await NotificationModel.insertMany(rows);
         } else if (sheet === 'Files') {
-          // Pre-fetch and map existing fileData contents so we don't lose the base64 contents
-          const existingFiles = await FileModel.find({ fileData: { $ne: null } });
-          const fileDataMap = {};
-          existingFiles.forEach(f => { fileDataMap[f.id] = f.fileData; });
-
-          const rowsToSave = (rows || []).map(row => {
-            if (!row.fileData && fileDataMap[row.id]) {
-              row.fileData = fileDataMap[row.id];
+          // Sync files list from client, preserving existing fileData without querying it!
+          const ids = (rows || []).map(r => r.id);
+          await FileModel.deleteMany({ id: { $nin: ids } });
+          
+          if (rows && rows.length > 0) {
+            for (const row of rows) {
+              const updateDoc = { ...row };
+              if (!updateDoc.fileData) {
+                delete updateDoc.fileData;
+              }
+              await FileModel.findOneAndUpdate(
+                { id: row.id },
+                { $set: updateDoc },
+                { upsert: true }
+              );
             }
-            return row;
-          });
-
-          await FileModel.deleteMany({});
-          if (rowsToSave.length > 0) await FileModel.insertMany(rowsToSave);
+          }
         }
         return res.json({ success: true, message: `Synced sheet ${sheet}` });
       }
@@ -422,28 +472,69 @@ app.post('/api/sync', checkToken, async (req, res) => {
           if (data.notifications.length > 0) await NotificationModel.insertMany(data.notifications);
         }
         if (data.files) {
-          const existingFiles = await FileModel.find({ fileData: { $ne: null } });
-          const fileDataMap = {};
-          existingFiles.forEach(f => { fileDataMap[f.id] = f.fileData; });
+          // Sync files list from client, preserving existing fileData without querying it!
+          const ids = data.files.map(f => f.id);
+          await FileModel.deleteMany({ id: { $nin: ids } });
 
-          const filesToSave = data.files.map(row => {
-            if (!row.fileData && fileDataMap[row.id]) {
-              row.fileData = fileDataMap[row.id];
+          for (const row of data.files) {
+            const updateDoc = { ...row };
+            if (!updateDoc.fileData) {
+              delete updateDoc.fileData;
             }
-            return row;
-          });
-
-          await FileModel.deleteMany({});
-          if (filesToSave.length > 0) await FileModel.insertMany(filesToSave);
+            await FileModel.findOneAndUpdate(
+              { id: row.id },
+              { $set: updateDoc },
+              { upsert: true }
+            );
+          }
         }
         return res.json({ success: true, message: 'Synced all collections' });
       }
     } else {
       // Local DB Fallback
       const db = readLocalDB();
+      const key = sheet ? sheet.toLowerCase() : '';
+
+      if (action === 'mutation') {
+        if (!db[key]) db[key] = [];
+        const items = Array.isArray(item) ? item : [item];
+
+        if (mutationType === 'upsert') {
+          if (!item) {
+            return res.status(400).json({ error: 'Thiếu dữ liệu.' });
+          }
+          for (const it of items) {
+            if (!it.id) continue;
+            const idx = db[key].findIndex(x => x.id === it.id);
+            if (idx !== -1) {
+              if (key === 'files' && !it.fileData && db[key][idx].fileData) {
+                it.fileData = db[key][idx].fileData;
+              }
+              db[key][idx] = { ...db[key][idx], ...it };
+            } else {
+              if (key === 'files') {
+                db[key].unshift(it);
+              } else {
+                db[key].push(it);
+              }
+            }
+          }
+          writeLocalDB(db);
+          return res.json({ success: true, message: `Upserted local item(s) in ${sheet}` });
+        } else if (mutationType === 'delete') {
+          if (!item) {
+            return res.status(400).json({ error: 'Thiếu dữ liệu cần xóa.' });
+          }
+          const ids = items.map(it => it.id).filter(Boolean);
+          if (ids.length > 0) {
+            db[key] = db[key].filter(x => !ids.includes(x.id));
+            writeLocalDB(db);
+          }
+          return res.json({ success: true, message: `Deleted local item(s) in ${sheet}` });
+        }
+      }
 
       if (action === 'sync') {
-        const key = sheet.toLowerCase();
         if (key === 'files') {
           // Preserve base64
           const fileDataMap = {};
@@ -568,14 +659,18 @@ app.get('/api/download/:id', async (req, res) => {
       return res.status(404).send('Không tìm thấy tệp tin hoặc tệp tin chưa được tải lên.');
     }
 
-    // Split base64 payload from data url prefix: "data:mimeType;base64,payload"
-    const matches = fileRecord.fileData.match(/^data:(.+);base64,(.+)$/);
-    if (!matches) {
+    // Split base64 payload from data url prefix: "data:mimeType;base64,payload" using a safe split/trim method
+    if (!fileRecord.fileData.startsWith('data:')) {
       return res.status(500).send('Dữ liệu tệp tin bị hỏng hoặc không đúng định dạng.');
     }
 
-    const contentType = matches[1];
-    const base64Data = matches[2];
+    const parts = fileRecord.fileData.split(';base64,');
+    if (parts.length !== 2) {
+      return res.status(500).send('Dữ liệu tệp tin bị hỏng hoặc không đúng định dạng.');
+    }
+
+    const contentType = parts[0].substring(5); // Remove 'data:'
+    const base64Data = parts[1].trim(); // Trim trailing/leading whitespace or newlines
     const fileBuffer = Buffer.from(base64Data, 'base64');
 
     // Prevent caching

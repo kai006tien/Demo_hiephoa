@@ -122,12 +122,12 @@ const Sync = {
 
   // Background Sync (runs on app load & periodic polling)
   async backgroundSync(isSilent = false) {
-    if (!this.isEnabled() || (this.isSyncing && !isSilent)) return;
+    if (!this.isEnabled() || this.isSyncing) return;
     const url = this.getUrl();
     if (!url) return;
 
+    this.isSyncing = true;
     if (!isSilent) {
-      this.isSyncing = true;
       this.updateStatusUI('syncing');
     }
 
@@ -140,60 +140,40 @@ const Sync = {
 
       const cloudData = result.data || {};
       
-      // Check if cloud database is empty (meaning first time setup)
-      const isCloudEmpty = !cloudData.Accounts || cloudData.Accounts.length === 0;
-      
-      if (isCloudEmpty) {
-        if (!isSilent) {
-          console.log('☁️ Cloud database is empty. Uploading local data to initialize Sheets...');
-          await this.uploadAllToCloudInternal(url);
-        }
-      } else {
-        // So sánh dữ liệu để tránh cập nhật lại giao diện không cần thiết
-        const currentAccounts = localStorage.getItem('hha_accounts');
-        const currentDocs = localStorage.getItem('hha_documents');
-        const currentVotes = localStorage.getItem('hha_votes');
-        const currentNotifs = localStorage.getItem('hha_notifications');
-        const currentFiles = localStorage.getItem('hha_files');
+      // So sánh dữ liệu để tránh cập nhật lại giao diện không cần thiết
+      const currentAccounts = localStorage.getItem('hha_accounts');
+      const currentDocs = localStorage.getItem('hha_documents');
+      const currentVotes = localStorage.getItem('hha_votes');
+      const currentNotifs = localStorage.getItem('hha_notifications');
+      const currentFiles = localStorage.getItem('hha_files');
 
-        const newAccounts = JSON.stringify(cloudData.Accounts || []);
-        const newDocs = JSON.stringify(cloudData.Documents || []);
-        const newVotes = JSON.stringify(cloudData.Votes || []);
-        const newNotifs = JSON.stringify(cloudData.Notifications || []);
-        const newFiles = JSON.stringify(cloudData.Files || []);
+      const newAccounts = JSON.stringify(cloudData.Accounts || []);
+      const newDocs = JSON.stringify(cloudData.Documents || []);
+      const newVotes = JSON.stringify(cloudData.Votes || []);
+      const newNotifs = JSON.stringify(cloudData.Notifications || []);
+      const newFiles = JSON.stringify(cloudData.Files || []);
 
-        const hasChanged = 
-          currentAccounts !== newAccounts ||
-          currentDocs !== newDocs ||
-          currentVotes !== newVotes ||
-          currentNotifs !== newNotifs ||
-          currentFiles !== newFiles;
+      const hasChanged = 
+        currentAccounts !== newAccounts ||
+        currentDocs !== newDocs ||
+        currentVotes !== newVotes ||
+        currentNotifs !== newNotifs ||
+        currentFiles !== newFiles;
 
-        if (hasChanged) {
-          console.log('☁️ Phát hiện dữ liệu mới từ đám mây. Đang đồng bộ và cập nhật...');
-          this.saveCloudDataToLocalStorage(cloudData);
-          document.dispatchEvent(new CustomEvent('hha_data_synced'));
-        }
+      if (hasChanged) {
+        console.log('☁️ Phát hiện dữ liệu mới từ đám mây. Đang đồng bộ và cập nhật...');
+        this.saveCloudDataToLocalStorage(cloudData);
+        document.dispatchEvent(new CustomEvent('hha_data_synced'));
       }
       
-      if (!isSilent) {
-        this.updateStatusUI('synced');
-      } else {
-        // Xóa chấm đỏ lỗi kết nối nếu đồng bộ nền thành công trở lại
-        const dot = document.getElementById('sync-status-dot');
-        if (dot && dot.style.background.includes('rgb(239, 68, 68)')) {
-          this.updateStatusUI('synced');
-        }
-      }
+      this.updateStatusUI('synced');
     } catch (e) {
       console.error('☁️ Sync error:', e);
       if (!isSilent) {
         this.updateStatusUI('error');
       }
     } finally {
-      if (!isSilent) {
-        this.isSyncing = false;
-      }
+      this.isSyncing = false;
     }
   },
 
@@ -242,6 +222,36 @@ const Sync = {
       setTimeout(() => this.updateStatusUI('synced'), 500);
     } catch (e) {
       console.error(`☁️ Error syncing sheet ${sheetName}:`, e);
+      this.updateStatusUI('error');
+    }
+  },
+
+  // Sync a single item mutation (upsert/delete) in the background
+  async syncMutation(mutationType, sheetName, item) {
+    if (!this.isEnabled()) return;
+    const url = this.getUrl();
+    if (!url) return;
+
+    this.updateStatusUI('saving');
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'mutation',
+          mutationType: mutationType,
+          sheet: sheetName,
+          item: item,
+          token: CONFIG.secretToken
+        })
+      });
+      
+      setTimeout(() => this.updateStatusUI('synced'), 500);
+    } catch (e) {
+      console.error(`☁️ Error syncing mutation in ${sheetName}:`, e);
       this.updateStatusUI('error');
     }
   },
