@@ -171,7 +171,7 @@ const Storage = {
   addFile(file) {
     const files = Storage.getFiles();
     files.unshift(file);
-    Storage.saveFiles(files);
+    Storage.set(Storage.KEYS.FILES, files);
     return file;
   },
 
