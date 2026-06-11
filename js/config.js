@@ -8,5 +8,8 @@ const CONFIG = {
   googleScriptUrl: '',
 
   // Trạng thái kích hoạt đồng bộ hóa qua Google Sheets
-  syncEnabled: false
+  syncEnabled: false,
+
+  // Token bí mật bảo mật truy cập Google Sheets
+  secretToken: 'HiepHoaSecret2026'
 };

@@ -35,6 +35,9 @@
 // Thay bằng ID Google Sheet của bạn
 const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 
+// Mã token bí mật để xác thực quyền truy cập từ website
+const SECRET_TOKEN = 'HiepHoaSecret2026';
+
 // Tên các sheet
 const SHEET_NAMES = {
   ACCOUNTS: 'Accounts',
@@ -48,6 +51,13 @@ const SHEET_NAMES = {
 
 function doGet(e) {
   try {
+    const token = e.parameter.token;
+    if (token !== SECRET_TOKEN) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ error: 'Unauthorized: Sai mã bảo mật truy cập.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const action = e.parameter.action;
     const sheet = e.parameter.sheet;
     
@@ -81,6 +91,13 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    const token = data.token;
+    if (token !== SECRET_TOKEN) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ error: 'Unauthorized: Sai mã bảo mật truy cập.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const action = data.action;
     
     let result;

@@ -116,7 +116,7 @@ const Sync = {
     }
 
     try {
-      const response = await fetch(`${url}?action=read&sheet=Accounts`);
+      const response = await fetch(`${url}?action=read&sheet=Accounts&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Không thể kết nối đến Web App.');
       
       const result = await response.json();
@@ -139,7 +139,7 @@ const Sync = {
     this.updateStatusUI('syncing');
 
     try {
-      const response = await fetch(`${url}?action=readAll`);
+      const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Network error');
       
       const result = await response.json();
@@ -206,7 +206,8 @@ const Sync = {
         body: JSON.stringify({
           action: 'sync',
           sheet: sheetName,
-          rows: data
+          rows: data,
+          token: CONFIG.secretToken
         })
       });
       
@@ -232,7 +233,7 @@ const Sync = {
 
     this.updateStatusUI('syncing');
     try {
-      const response = await fetch(`${url}?action=readAll`);
+      const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Không thể kết nối đến Web App.');
       
       const result = await response.json();
@@ -290,7 +291,8 @@ const Sync = {
         votes: Storage.getVotes(),
         notifications: Storage.getNotifications(),
         files: Storage.getFiles()
-      }
+      },
+      token: CONFIG.secretToken
     };
 
     try {
