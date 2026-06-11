@@ -109,7 +109,7 @@ const Sync = {
     try {
       const response = await fetch(`${url}?action=read&sheet=Accounts&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
-      
+
       const result = await response.json();
       if (result.error) {
         return { success: false, error: result.error };
@@ -134,12 +134,12 @@ const Sync = {
     try {
       const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Network error');
-      
+
       const result = await response.json();
       if (result.error) throw new Error(result.error);
 
       const cloudData = result.data || {};
-      
+
       // So sánh dữ liệu để tránh cập nhật lại giao diện không cần thiết
       const currentAccounts = localStorage.getItem('hha_accounts');
       const currentDocs = localStorage.getItem('hha_documents');
@@ -153,7 +153,7 @@ const Sync = {
       const newNotifs = JSON.stringify(cloudData.Notifications || []);
       const newFiles = JSON.stringify(cloudData.Files || []);
 
-      const hasChanged = 
+      const hasChanged =
         currentAccounts !== newAccounts ||
         currentDocs !== newDocs ||
         currentVotes !== newVotes ||
@@ -165,7 +165,7 @@ const Sync = {
         this.saveCloudDataToLocalStorage(cloudData);
         document.dispatchEvent(new CustomEvent('hha_data_synced'));
       }
-      
+
       this.lastSyncTime = new Date().toISOString();
       this.updateStatusUI('synced');
     } catch (e) {
@@ -218,7 +218,7 @@ const Sync = {
           token: CONFIG.secretToken
         })
       });
-      
+
       // Delay status change briefly so the user sees the confirmation
       setTimeout(() => this.updateStatusUI('synced'), 500);
     } catch (e) {
@@ -249,7 +249,7 @@ const Sync = {
           token: CONFIG.secretToken
         })
       });
-      
+
       setTimeout(() => this.updateStatusUI('synced'), 500);
     } catch (e) {
       console.error(`☁️ Error syncing mutation in ${sheetName}:`, e);
@@ -273,13 +273,13 @@ const Sync = {
     try {
       const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
       if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
-      
+
       const result = await response.json();
       if (result.error) throw new Error(result.error);
 
       this.saveCloudDataToLocalStorage(result.data || {});
       this.updateStatusUI('synced');
-      
+
       alert('Đã tải và đồng bộ dữ liệu thành công!');
       window.location.reload();
       return true;
