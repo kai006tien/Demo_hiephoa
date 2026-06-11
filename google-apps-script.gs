@@ -33,7 +33,7 @@
 
 // ========== CẤU HÌNH ==========
 // Thay bằng ID Google Sheet của bạn
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+const SPREADSHEET_ID = '1oXzK7wvFkVBI0dcPo5xYQJGxApI1iuU-jxUqFDnuEmA';
 
 // Mã token bí mật để xác thực quyền truy cập từ website
 const SECRET_TOKEN = 'HiepHoaSecret2026';
