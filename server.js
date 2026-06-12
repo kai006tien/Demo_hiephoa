@@ -142,10 +142,54 @@ app.use(express.static(__dirname, {
 // ============================================
 let isMongoConnected = false;
 
-const AccountSchema = new mongoose.Schema({}, { strict: false, collection: 'accounts' });
-const DocumentSchema = new mongoose.Schema({}, { strict: false, collection: 'documents' });
-const VoteSchema = new mongoose.Schema({}, { strict: false, collection: 'votes' });
-const NotificationSchema = new mongoose.Schema({}, { strict: false, collection: 'notifications' });
+const AccountSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  fullName: String,
+  role: String,
+  position: String,
+  email: String,
+  phone: String,
+  active: Boolean,
+  createdAt: String
+}, { strict: false, id: false, collection: 'accounts' });
+
+const DocumentSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  title: String,
+  description: String,
+  fileName: String,
+  fileSize: Number,
+  status: String,
+  permissions: mongoose.Schema.Types.Mixed,
+  createdBy: String,
+  createdAt: String,
+  publishedAt: String,
+  finalizedAt: String
+}, { strict: false, id: false, collection: 'documents' });
+
+const VoteSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  title: String,
+  description: String,
+  status: String,
+  voters: [mongoose.Schema.Types.Mixed],
+  createdBy: String,
+  createdAt: String,
+  closedAt: String
+}, { strict: false, id: false, collection: 'votes' });
+
+const NotificationSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  title: String,
+  content: String,
+  priority: String,
+  readBy: [String],
+  createdBy: String,
+  createdAt: String
+}, { strict: false, id: false, collection: 'notifications' });
+
 const FileSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   fileName: String,
@@ -155,7 +199,8 @@ const FileSchema = new mongoose.Schema({
   createdAt: String,
   downloadUrl: String,
   fileData: String
-}, { strict: false, collection: 'files' });
+}, { strict: false, id: false, collection: 'files' });
+
 const SuggestionSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   senderId: String,
@@ -166,7 +211,7 @@ const SuggestionSchema = new mongoose.Schema({
   content: String,
   isAnonymous: Boolean,
   createdAt: String
-}, { strict: false, collection: 'suggestions' });
+}, { strict: false, id: false, collection: 'suggestions' });
 
 const AccountModel = mongoose.model('Account', AccountSchema);
 const DocumentModel = mongoose.model('Document', DocumentSchema);
