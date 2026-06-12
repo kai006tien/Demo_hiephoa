@@ -1022,73 +1022,68 @@ app.post('/api/sync', checkAuth, async (req, res) => {
 
 // POST /api/uploadFile - Upload file (yêu cầu xác thực)
 app.post('/api/uploadFile', checkAuth, async (req, res) => {
-  const { id, fileName, mimeType, base64, uploadedBy, description } = req.body;
-
-  if (!fileName || !base64) {
-    return res.status(400).json({ success: false, error: 'Thiếu tên file hoặc dữ liệu base64.' });
-  }
-
-  // Validate base64 data có nội dung
-  const rawBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
-  if (!rawBase64 || rawBase64.length === 0) {
-    return res.status(400).json({ success: false, error: 'Dữ liệu file trống.' });
-  }
-
-  const fileId = id || 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-
-  let fullDataUrl = base64;
-  if (!base64.startsWith('data:')) {
-    fullDataUrl = `data:${mimeType || 'application/octet-stream'};base64,${base64}`;
-  }
-
-  const calculatedSize = Buffer.from(rawBase64, 'base64').length;
-  console.log(`Upload: Nhận file "${fileName}" (${calculatedSize} bytes), id=${fileId}`);
-
   try {
-    const downloadUrl = `/api/download/${fileId}`;
+    const { id, fileName, mimeType, base64, uploadedBy, description } = req.body;
 
-    if (isMongoConnected) {
-      const newFile = new FileModel({
-        id: fileId,
-        fileName,
-        fileSize: calculatedSize,
-        uploadedBy: uploadedBy || 'Không xác định',
-        description: description || '',
-        createdAt: new Date().toISOString(),
-        downloadUrl,
-        fileData: fullDataUrl
-      });
-      await newFile.save();
-
-      // Xác minh file đã được lưu
-      const verify = await FileModel.findOne({ id: fileId }, { id: 1, fileData: { $exists: true } });
-      if (!verify) {
-        console.error(`Upload: File đã lưu nhưng không thể verify, id=${fileId}`);
-      } else {
-        console.log(`Upload: File đã lưu thành công vào MongoDB, id=${fileId}`);
-      }
-    } else {
-      const db = readLocalDB();
-      const newFile = {
-        id: fileId,
-        fileName,
-        fileSize: calculatedSize,
-        uploadedBy: uploadedBy || 'Không xác định',
-        description: description || '',
-        createdAt: new Date().toISOString(),
-        downloadUrl,
-        fileData: fullDataUrl
-      };
-      db.files = db.files || [];
-      db.files.unshift(newFile);
-      writeLocalDB(db);
-      console.log(`Upload: File đã lưu thành công vào db.json, id=${fileId}`);
+    if (!fileName || !base64) {
+      return res.status(400).json({ success: false, error: 'Thiếu tên file hoặc dữ liệu base64.' });
     }
 
-    res.json({ success: true, downloadUrl, fileId });
+    // Lấy phần base64 thuần (bỏ prefix data:...;base64, nếu có)
+    const rawBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+    if (!rawBase64 || rawBase64.length < 10) {
+      return res.status(400).json({ success: false, error: 'Dữ liệu file trống hoặc không hợp lệ.' });
+    }
+
+    const fileId = id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+
+    // Tạo data URL đầy đủ
+    let fullDataUrl;
+    if (base64.startsWith('data:')) {
+      fullDataUrl = base64;
+    } else {
+      fullDataUrl = `data:${mimeType || 'application/octet-stream'};base64,${base64}`;
+    }
+
+    const calculatedSize = Buffer.from(rawBase64, 'base64').length;
+    const downloadUrl = `/api/download/${fileId}`;
+
+    console.log(`Upload: file="${fileName}", size=${calculatedSize} bytes, id=${fileId}`);
+
+    // Kiểm tra giới hạn kích thước (MongoDB giới hạn 16MB/document)
+    if (fullDataUrl.length > 15 * 1024 * 1024) {
+      return res.status(413).json({ success: false, error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 10MB.' });
+    }
+
+    const fileDoc = {
+      id: fileId,
+      fileName,
+      fileSize: calculatedSize,
+      uploadedBy: uploadedBy || 'admin',
+      description: description || '',
+      createdAt: new Date().toISOString(),
+      downloadUrl,
+      fileData: fullDataUrl
+    };
+
+    if (isMongoConnected) {
+      await new FileModel(fileDoc).save();
+      console.log(`Upload: Lưu MongoDB OK, id=${fileId}`);
+    } else {
+      const db = readLocalDB();
+      db.files = db.files || [];
+      db.files.unshift(fileDoc);
+      writeLocalDB(db);
+      console.log(`Upload: Lưu db.json OK, id=${fileId}`);
+    }
+
+    return res.json({ success: true, downloadUrl, fileId });
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ.' });
+    console.error('Upload error:', error.message || error);
+    if (error.message && error.message.includes('document is larger')) {
+      return res.status(413).json({ success: false, error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 10MB.' });
+    }
+    return res.status(500).json({ success: false, error: 'Lỗi máy chủ: ' + (error.message || 'Không xác định') });
   }
 });
 
