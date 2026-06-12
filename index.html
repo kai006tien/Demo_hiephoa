@@ -135,21 +135,12 @@
       input.type = input.type === 'password' ? 'text' : 'password';
     }
 
+    // Attach event listeners dynamically to comply with CSP
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    document.getElementById('password-toggle').addEventListener('click', togglePassword);
+
     // Focus on username input
     document.getElementById('login-username').focus();
-
-    // CSP compliant event listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      const loginForm = document.getElementById('login-form');
-      if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-      }
-      
-      const pwdToggle = document.getElementById('password-toggle');
-      if (pwdToggle) {
-        pwdToggle.addEventListener('click', togglePassword);
-      }
-    });
   </script>
 </body>
 </html>
