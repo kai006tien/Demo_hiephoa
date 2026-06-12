@@ -175,35 +175,67 @@ const FileModel = mongoose.model('File', FileSchema);
 const SuggestionModel = mongoose.model('Suggestion', SuggestionSchema);
 
 // ============================================
-// PASSWORD MIGRATION: Base64 → bcrypt
+// PASSWORD MIGRATION: Base64 → bcrypt (with repair logic)
 // ============================================
 async function migratePasswordsToBcrypt() {
   try {
     const accounts = await AccountModel.find({});
     let migratedCount = 0;
+    let repairedCount = 0;
+
+    const defaultPasswords = {
+      'admin': 'admin123',
+      'nguyenvana': '123456',
+      'tranthib': '123456',
+      'levanc': '123456'
+    };
 
     for (const account of accounts) {
-      // bcrypt hashes luôn bắt đầu bằng $2a$ hoặc $2b$
-      if (account.password && !account.password.startsWith('$2a$') && !account.password.startsWith('$2b$')) {
-        // Đây là mật khẩu Base64 cũ, cần chuyển đổi
-        let plainPassword;
-        try {
-          plainPassword = decodeURIComponent(Buffer.from(account.password, 'base64').toString());
-        } catch (e) {
-          plainPassword = account.password; // Nếu không decode được, dùng nguyên
-        }
+      if (!account.password) continue;
 
-        const hashedPassword = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
-        await AccountModel.findOneAndUpdate(
-          { id: account.id },
-          { $set: { password: hashedPassword } }
-        );
-        migratedCount++;
+      // 1. Sửa lỗi nếu các tài khoản mặc định bị hash nhầm từ chuỗi rác
+      if (account.password.startsWith('$2a$') || account.password.startsWith('$2b$')) {
+        const defaultPassword = defaultPasswords[account.username];
+        if (defaultPassword) {
+          const isCorrect = await bcrypt.compare(defaultPassword, account.password);
+          if (!isCorrect) {
+            const newHashed = await bcrypt.hash(defaultPassword, BCRYPT_ROUNDS);
+            await AccountModel.findOneAndUpdate(
+              { id: account.id },
+              { $set: { password: newHashed } }
+            );
+            repairedCount++;
+          }
+        }
+        continue;
       }
+
+      // 2. Chuyển đổi an toàn từ Base64 hoặc Plain text sang bcrypt
+      let plainPassword = account.password;
+      try {
+        const decoded = Buffer.from(account.password, 'base64').toString('utf8');
+        const isPrintable = /^[\x20-\x7E]+$/.test(decoded);
+        const reEncoded = Buffer.from(decoded).toString('base64');
+        if (isPrintable && (reEncoded === account.password || reEncoded.replace(/=/g, '') === account.password.replace(/=/g, ''))) {
+          plainPassword = decoded;
+        }
+      } catch (e) {
+        // Giữ nguyên plainPassword
+      }
+
+      const hashedPassword = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
+      await AccountModel.findOneAndUpdate(
+        { id: account.id },
+        { $set: { password: hashedPassword } }
+      );
+      migratedCount++;
     }
 
+    if (repairedCount > 0) {
+      console.log(`🔧 Đã sửa lỗi hash cho ${repairedCount} tài khoản mặc định.`);
+    }
     if (migratedCount > 0) {
-      console.log(`🔐 Đã chuyển đổi ${migratedCount} mật khẩu từ Base64 sang bcrypt.`);
+      console.log(`🔐 Đã chuyển đổi ${migratedCount} mật khẩu sang bcrypt.`);
     } else {
       console.log('🔐 Tất cả mật khẩu đã ở định dạng bcrypt.');
     }
