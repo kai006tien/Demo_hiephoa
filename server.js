@@ -1072,6 +1072,27 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
 
 
 
+app.get('/api/inspect-db', async (req, res) => {
+  try {
+    const rawAccounts = await AccountModel.find({});
+    res.json({
+      accounts: rawAccounts,
+      accountsMapped: rawAccounts.map(a => {
+        const obj = a.toObject();
+        return {
+          _id: obj._id,
+          id: obj.id,
+          username: obj.username,
+          hasIdInDoc: 'id' in a._doc,
+          idInDocValue: a._doc.id
+        };
+      })
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
