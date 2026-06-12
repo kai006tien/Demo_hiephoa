@@ -1185,6 +1185,55 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
   }
 });
 
+// TEMPORARY DEBUG ENDPOINT (WILL BE REMOVED)
+app.get('/api/debug-db', async (req, res) => {
+  try {
+    if (req.query.reset === 'true') {
+      if (isMongoConnected) {
+        await AccountModel.deleteMany({});
+        await DocumentModel.deleteMany({});
+        await VoteModel.deleteMany({});
+        await NotificationModel.deleteMany({});
+        await FileModel.deleteMany({});
+        await initializeMongoDbData();
+        return res.json({ success: true, message: 'Database reset and seeded successfully' });
+      } else {
+        const db = readLocalDB();
+        db.accounts = [];
+        db.documents = [];
+        db.votes = [];
+        db.notifications = [];
+        db.files = [];
+        writeLocalDB(db);
+        return res.json({ success: true, message: 'Local database reset successfully' });
+      }
+    }
+
+    let accounts = [];
+    if (isMongoConnected) {
+      accounts = await AccountModel.find({});
+    } else {
+      accounts = readLocalDB().accounts || [];
+    }
+
+    const info = accounts.map(a => ({
+      username: a.username,
+      hasPassword: !!a.password,
+      passwordPrefix: a.password ? a.password.substring(0, 10) : 'none',
+      passwordLength: a.password ? a.password.length : 0,
+      role: a.role
+    }));
+
+    res.json({
+      success: true,
+      isMongoConnected,
+      accounts: info
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
