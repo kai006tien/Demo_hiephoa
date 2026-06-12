@@ -175,7 +175,7 @@ const Documents = {
   },
 
   // Save document
-  saveDocument() {
+  async saveDocument() {
     const editId = document.getElementById('doc-edit-id').value;
     const title = document.getElementById('doc-title-input').value.trim();
     const description = document.getElementById('doc-desc-input').value.trim();
@@ -196,39 +196,85 @@ const Documents = {
       }
     });
 
+    const fileInput = document.getElementById('doc-file-input');
+    let file = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+    let downloadUrl = null;
+    let fileName = null;
+    let fileSize = 0;
+
+    if (file) {
+      fileName = file.name;
+      fileSize = file.size;
+
+      Utils.showToast('info', 'Đang xử lý', 'Đang tải file đính kèm lên...');
+      
+      try {
+        const fileDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = (e) => reject(e);
+          reader.readAsDataURL(file);
+        });
+
+        const base64Payload = fileDataUrl.split(',')[1];
+        const token = Auth.getAuthToken();
+        const response = await fetch('/api/uploadFile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: file.type,
+            base64: base64Payload,
+            uploadedBy: Auth.getSession().userId,
+            description: `File đính kèm văn bản: ${title}`
+          })
+        });
+
+        if (response.status === 401) {
+          Sync.handleUnauthorized();
+          return;
+        }
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            downloadUrl = result.downloadUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi upload file:', err);
+        Utils.showToast('error', 'Lỗi', 'Không thể tải file lên máy chủ.');
+        return;
+      }
+    }
+
     if (editId) {
       const doc = Storage.getDocuments().find(d => d.id === editId);
       if (doc && doc.status === 'finalized') {
         Utils.showToast('error', 'Lỗi', 'Không thể chỉnh sửa văn bản đã chốt');
         return;
       }
-      const fileInput = document.getElementById('doc-file-input');
+      
       const updates = { title, description, permissions };
-      if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        updates.fileName = file.name;
-        updates.fileSize = file.size;
+      if (file) {
+        updates.fileName = fileName;
+        updates.fileSize = fileSize;
+        updates.downloadUrl = downloadUrl;
       }
       Storage.updateDocument(editId, updates);
       Utils.showToast('success', 'Thành công', 'Đã cập nhật văn bản');
     } else {
-      // Check for file upload
-      const fileInput = document.getElementById('doc-file-input');
-      let fileName = 'Document.docx';
-      let fileSize = 0;
-
-      if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        fileName = file.name;
-        fileSize = file.size;
-      }
-
       const newDoc = {
         id: Utils.generateId(),
         title,
         description,
-        fileName,
-        fileSize,
+        fileName: fileName || 'Document.docx',
+        fileSize: fileSize || 0,
+        downloadUrl: downloadUrl,
         status: 'draft',
         permissions,
         createdBy: Auth.getSession().userId,
@@ -342,12 +388,45 @@ const Documents = {
   },
 
   // Download document
-  downloadDocument(id) {
+  async downloadDocument(id) {
     const doc = Storage.getDocuments().find(d => d.id === id);
-    if (doc) {
-      Utils.showToast('info', 'Tải xuống', `Đang tải "${doc.fileName}"...`);
+    if (!doc) return;
+
+    Utils.showToast('info', 'Tải xuống', `Đang tải "${doc.fileName}"...`);
+
+    if (doc.downloadUrl) {
+      try {
+        const token = Auth.getAuthToken();
+        const response = await fetch(doc.downloadUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 401) {
+          Sync.handleUnauthorized();
+          return;
+        }
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = doc.fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        } else {
+          Utils.showToast('error', 'Lỗi', 'Không thể tải file.');
+        }
+      } catch (err) {
+        console.error('Download error:', err);
+        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối khi tải file.');
+      }
+    } else {
+      // Fallback for legacy items without downloadUrl
       setTimeout(() => {
-        Utils.downloadFile(doc.fileName, `Tiêu đề văn bản: ${doc.title}\nMô tả: ${doc.description || 'Không có mô tả'}\nNgày tạo: ${Utils.formatDateTime(doc.createdAt)}\nTrạng thái: ${doc.status}`);
+        Utils.downloadFile(doc.fileName, `Tiêu đề văn bản: ${doc.title}\nMô tả: ${doc.description || 'Không có mô tả'}\nNgày tạo: ${Utils.formatDateTime(doc.createdAt)}\nTrạng thái: ${doc.status}\n\n(Lưu ý: Văn bản này được tạo trước phiên bản tải file thực tế)`);
       }, 500);
     }
   },
