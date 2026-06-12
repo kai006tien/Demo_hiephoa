@@ -18,3 +18,4 @@ temp/
 # Local configuration
 .env
 node_modules/
+db.json

@@ -107,7 +107,7 @@ const Accounts = {
   },
 
   // Save account (create or update)
-  saveAccount() {
+  async saveAccount() {
     const editId = document.getElementById('account-edit-id').value;
     const fullName = document.getElementById('account-fullname').value.trim();
     const username = document.getElementById('account-username').value.trim();
@@ -121,37 +121,52 @@ const Accounts = {
     }
 
     if (editId) {
-      // Update existing
+      // Update existing (metadata only, no password)
       Storage.updateAccount(editId, { fullName, position, email, phone });
       Utils.showToast('success', 'Thành công', 'Đã cập nhật thông tin tài khoản');
     } else {
-      // Create new
+      // Create new - gọi API server để hash mật khẩu bằng bcrypt
       const password = document.getElementById('account-password').value;
       if (!password) {
         Utils.showToast('error', 'Lỗi', 'Vui lòng nhập mật khẩu');
         return;
       }
 
-      // Check username unique
-      if (Storage.getAccountByUsername(username)) {
-        Utils.showToast('error', 'Lỗi', 'Tên đăng nhập đã tồn tại');
+      if (password.length < 6) {
+        Utils.showToast('error', 'Lỗi', 'Mật khẩu phải có ít nhất 6 ký tự');
         return;
       }
 
-      const newAccount = {
-        id: Utils.generateId(),
-        username,
-        password: Utils.encode(password),
-        fullName,
-        role: 'user',
-        position,
-        email,
-        phone,
-        active: true,
-        createdAt: Utils.getCurrentDate()
-      };
-      Storage.addAccount(newAccount);
-      Utils.showToast('success', 'Thành công', `Đã tạo tài khoản "${fullName}"`);
+      try {
+        const token = Auth.getAuthToken();
+        const response = await fetch('/api/create-account', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ username, password, fullName, position, email, phone })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          Utils.showToast('error', 'Lỗi', result.error || 'Không thể tạo tài khoản');
+          return;
+        }
+
+        // Thêm account vào localStorage (không có password)
+        if (result.account) {
+          const accounts = Storage.getAccounts();
+          accounts.push(result.account);
+          Storage.saveAccounts(accounts);
+        }
+
+        Utils.showToast('success', 'Thành công', `Đã tạo tài khoản "${fullName}"`);
+      } catch (e) {
+        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối đến máy chủ');
+        return;
+      }
     }
 
     Utils.closeModal('modal-account');
@@ -159,14 +174,32 @@ const Accounts = {
     App.updateStats();
   },
 
-  // Reset password
-  resetPassword(id) {
+  // Reset password - gọi API server
+  async resetPassword(id) {
     const account = Storage.getAccountById(id);
     if (!account) return;
 
     if (confirm(`Đặt lại mật khẩu cho "${account.fullName}" về "123456"?`)) {
-      Storage.updateAccount(id, { password: Utils.encode('123456') });
-      Utils.showToast('success', 'Thành công', `Đã đặt lại mật khẩu cho "${account.fullName}"`);
+      try {
+        const token = Auth.getAuthToken();
+        const response = await fetch('/api/reset-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ userId: id, newPassword: '123456' })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          Utils.showToast('success', 'Thành công', `Đã đặt lại mật khẩu cho "${account.fullName}"`);
+        } else {
+          Utils.showToast('error', 'Lỗi', result.error || 'Không thể đặt lại mật khẩu');
+        }
+      } catch (e) {
+        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối đến máy chủ');
+      }
     }
   },
 

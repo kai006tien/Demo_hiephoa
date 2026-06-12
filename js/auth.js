@@ -3,35 +3,71 @@
    ============================================ */
 
 const Auth = {
-  // Login
-  login(username, password) {
-    const accounts = Storage.getAccounts();
-    const account = accounts.find(a => 
-      a.username === username && 
-      Utils.decode(a.password) === password &&
-      a.active
-    );
+  // Session timeout: 30 phút không hoạt động sẽ tự động đăng xuất
+  SESSION_TIMEOUT_MS: 30 * 60 * 1000,
+  activityTimer: null,
 
-    if (account) {
-      const session = {
-        userId: account.id,
-        username: account.username,
-        fullName: account.fullName,
-        role: account.role,
-        position: account.position,
-        loginTime: Utils.getCurrentDate()
-      };
-      Storage.setSession(session);
-      return { success: true, session };
+  // Login - gọi API server để xác thực
+  async login(username, password) {
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Lưu auth token vào sessionStorage (an toàn hơn localStorage)
+        sessionStorage.setItem('hha_auth_token', result.token);
+
+        const session = {
+          userId: result.session.userId,
+          username: result.session.username,
+          fullName: result.session.fullName,
+          role: result.session.role,
+          position: result.session.position,
+          loginTime: result.session.loginTime
+        };
+        Storage.setSession(session);
+        Auth.startActivityMonitor();
+        return { success: true, session };
+      }
+
+      return { success: false, message: result.error || 'Đăng nhập thất bại' };
+    } catch (e) {
+      console.error('Login error:', e);
+      return { success: false, message: 'Lỗi kết nối đến máy chủ. Vui lòng thử lại.' };
     }
-
-    return { success: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng!' };
   },
 
-  // Logout
-  logout() {
+  // Logout - gọi API server để hủy session
+  async logout() {
+    try {
+      const token = Auth.getAuthToken();
+      if (token) {
+        await fetch('/api/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+    } catch (e) {
+      // Ignore errors during logout
+    }
+
+    Auth.stopActivityMonitor();
+    sessionStorage.removeItem('hha_auth_token');
     Storage.clearSession();
     window.location.href = 'index.html';
+  },
+
+  // Lấy auth token
+  getAuthToken() {
+    return sessionStorage.getItem('hha_auth_token');
   },
 
   // Get current session
@@ -39,9 +75,9 @@ const Auth = {
     return Storage.getSession();
   },
 
-  // Check if logged in
+  // Check if logged in (có cả token VÀ session)
   isLoggedIn() {
-    return !!Storage.getSession();
+    return !!Auth.getAuthToken() && !!Storage.getSession();
   },
 
   // Check if admin
@@ -63,6 +99,7 @@ const Auth = {
       window.location.href = 'index.html';
       return false;
     }
+    Auth.startActivityMonitor();
     return true;
   },
 
@@ -77,6 +114,7 @@ const Auth = {
       window.location.href = 'user.html';
       return false;
     }
+    Auth.startActivityMonitor();
     return true;
   },
 
@@ -91,19 +129,63 @@ const Auth = {
       window.location.href = 'admin.html';
       return false;
     }
+    Auth.startActivityMonitor();
     return true;
   },
 
-  // Change password
-  changePassword(userId, oldPassword, newPassword) {
-    const account = Storage.getAccountById(userId);
-    if (!account) return { success: false, message: 'Tài khoản không tồn tại' };
-    
-    if (Utils.decode(account.password) !== oldPassword) {
-      return { success: false, message: 'Mật khẩu cũ không đúng' };
-    }
+  // Change password - gọi API server
+  async changePassword(userId, oldPassword, newPassword) {
+    try {
+      const token = Auth.getAuthToken();
+      const response = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ oldPassword, newPassword })
+      });
 
-    Storage.updateAccount(userId, { password: Utils.encode(newPassword) });
-    return { success: true, message: 'Đổi mật khẩu thành công' };
+      const result = await response.json();
+      if (response.ok) {
+        return { success: true, message: result.message };
+      }
+      return { success: false, message: result.error };
+    } catch (e) {
+      return { success: false, message: 'Lỗi kết nối đến máy chủ.' };
+    }
+  },
+
+  // Giám sát hoạt động người dùng - tự động đăng xuất khi không hoạt động
+  startActivityMonitor() {
+    Auth.resetActivityTimer();
+
+    // Lắng nghe các sự kiện hoạt động
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(event => {
+      document.removeEventListener(event, Auth.resetActivityTimer);
+      document.addEventListener(event, Auth.resetActivityTimer, { passive: true });
+    });
+  },
+
+  stopActivityMonitor() {
+    if (Auth.activityTimer) {
+      clearTimeout(Auth.activityTimer);
+      Auth.activityTimer = null;
+    }
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(event => {
+      document.removeEventListener(event, Auth.resetActivityTimer);
+    });
+  },
+
+  resetActivityTimer() {
+    if (Auth.activityTimer) {
+      clearTimeout(Auth.activityTimer);
+    }
+    Auth.activityTimer = setTimeout(() => {
+      alert('Phiên làm việc đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.');
+      Auth.logout();
+    }, Auth.SESSION_TIMEOUT_MS);
   }
 };

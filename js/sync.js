@@ -1,9 +1,8 @@
 /* ============================================
-   SYNC - Google Sheets Cloud Sync Engine
+   SYNC - Cloud Sync Engine (Secured)
    ============================================ */
 
 const Sync = {
-  // LocalStorage keys for sync configuration
   KEYS: {
     ENABLED: 'hha_google_sync_enabled',
     URL: 'hha_google_script_url'
@@ -12,35 +11,38 @@ const Sync = {
   isSyncing: false,
   pollingIntervalId: null,
 
-  // Initialize Sync settings
+  // Initialize Sync
   init() {
-    // Add status indicator to top bar if it exists
     this.injectStatusIndicator();
-
-    // Perform background sync and start polling
     this.backgroundSync();
-    this.startPolling(3000); // Đồng bộ nền mỗi 3 giây
+    this.startPolling(3000);
   },
 
-  // Check if sync is enabled (always true since MongoDB is core backend)
   isEnabled() {
     return true;
   },
 
-  // Get API URL
   getUrl() {
     return CONFIG.googleScriptUrl || '/api/sync';
   },
 
-  // Bắt đầu đồng bộ tự động theo chu kỳ
+  // Lấy Authorization headers cho mọi API call
+  getAuthHeaders() {
+    const token = Auth.getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  },
+
   startPolling(ms = 3000) {
     if (this.pollingIntervalId) clearInterval(this.pollingIntervalId);
     this.pollingIntervalId = setInterval(() => {
-      this.backgroundSync(true); // silent polling
+      this.backgroundSync(true);
     }, ms);
   },
 
-  // Dừng đồng bộ tự động
   stopPolling() {
     if (this.pollingIntervalId) {
       clearInterval(this.pollingIntervalId);
@@ -48,7 +50,6 @@ const Sync = {
     }
   },
 
-  // Inject sync status indicator into top-bar
   injectStatusIndicator() {
     const timeEl = document.querySelector('.top-bar__time');
     if (!timeEl || document.getElementById('sync-status-container')) return;
@@ -56,7 +57,7 @@ const Sync = {
     const syncHtml = `
       <span id="sync-status-container" style="display: none; align-items: center; gap: 6px; margin-left: 15px;">
         <span style="color: rgba(255,255,255,0.4);">|</span>
-        <span id="sync-status-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Nhấn để xem thông tin kết nối" onclick="Sync.showConnectionInfo()">
+        <span id="sync-status-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Trạng thái đồng bộ" onclick="Sync.showConnectionInfo()">
           <span class="sync-dot" id="sync-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block;"></span>
           <span id="sync-status-text">Đã đồng bộ</span>
         </span>
@@ -66,7 +67,6 @@ const Sync = {
     this.updateStatusUI();
   },
 
-  // Update status UI indicator
   updateStatusUI(status = 'synced') {
     const container = document.getElementById('sync-status-container');
     const dot = document.getElementById('sync-status-dot');
@@ -82,24 +82,32 @@ const Sync = {
     container.style.display = 'inline-flex';
 
     if (status === 'syncing' || status === 'saving') {
-      dot.style.background = '#F59E0B'; // Orange
+      dot.style.background = '#F59E0B';
       dot.style.boxShadow = '0 0 8px #F59E0B';
       dot.classList.add('animate-pulse');
       text.textContent = status === 'saving' ? 'Đang lưu...' : 'Đang đồng bộ...';
     } else if (status === 'error') {
-      dot.style.background = '#EF4444'; // Red
+      dot.style.background = '#EF4444';
       dot.style.boxShadow = '0 0 8px #EF4444';
       dot.classList.remove('animate-pulse');
       text.textContent = 'Lỗi kết nối';
     } else {
-      dot.style.background = '#10B981'; // Green
+      dot.style.background = '#10B981';
       dot.style.boxShadow = '0 0 8px #10B981';
       dot.classList.remove('animate-pulse');
       text.textContent = 'Đã đồng bộ';
     }
   },
 
-  // Test connection to Database
+  // Xử lý response 401 - tự động đăng xuất
+  handleUnauthorized() {
+    this.stopPolling();
+    sessionStorage.removeItem('hha_auth_token');
+    Storage.clearSession();
+    alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    window.location.href = 'index.html';
+  },
+
   async testConnection(testUrl = null) {
     const url = testUrl || this.getUrl();
     if (!url) {
@@ -107,7 +115,12 @@ const Sync = {
     }
 
     try {
-      const response = await fetch(`${url}?action=read&sheet=Accounts&token=${CONFIG.secretToken}`);
+      const response = await fetch(`${url}?action=read&sheet=Accounts`, {
+        headers: this.getAuthHeaders()
+      });
+      if (response.status === 401) {
+        return { success: false, error: 'Phiên đăng nhập không hợp lệ.' };
+      }
       if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
 
       const result = await response.json();
@@ -116,13 +129,16 @@ const Sync = {
       }
       return { success: true };
     } catch (e) {
-      return { success: false, error: e.message || 'Lỗi mạng hoặc CORS.' };
+      return { success: false, error: e.message || 'Lỗi mạng.' };
     }
   },
 
-  // Background Sync (runs on app load & periodic polling)
   async backgroundSync(isSilent = false) {
     if (!this.isEnabled() || this.isSyncing) return;
+
+    // Không sync nếu chưa đăng nhập
+    if (!Auth.getAuthToken()) return;
+
     const url = this.getUrl();
     if (!url) return;
 
@@ -132,7 +148,15 @@ const Sync = {
     }
 
     try {
-      const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
+      const response = await fetch(`${url}?action=readAll`, {
+        headers: this.getAuthHeaders()
+      });
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
+
       if (!response.ok) throw new Error('Network error');
 
       const result = await response.json();
@@ -140,7 +164,6 @@ const Sync = {
 
       const cloudData = result.data || {};
 
-      // So sánh dữ liệu để tránh cập nhật lại giao diện không cần thiết
       const currentAccounts = localStorage.getItem('hha_accounts');
       const currentDocs = localStorage.getItem('hha_documents');
       const currentVotes = localStorage.getItem('hha_votes');
@@ -164,7 +187,7 @@ const Sync = {
         currentSuggestions !== newSuggestions;
 
       if (hasChanged) {
-        console.log('☁️ Phát hiện dữ liệu mới từ đám mây. Đang đồng bộ và cập nhật...');
+        console.log('☁️ Phát hiện dữ liệu mới. Đang đồng bộ...');
         this.saveCloudDataToLocalStorage(cloudData);
         document.dispatchEvent(new CustomEvent('hha_data_synced'));
       }
@@ -181,7 +204,6 @@ const Sync = {
     }
   },
 
-  // Save cloud data payload to localStorage keys
   saveCloudDataToLocalStorage(cloudData) {
     if (cloudData.Accounts && cloudData.Accounts.length > 0) {
       localStorage.setItem('hha_accounts', JSON.stringify(cloudData.Accounts));
@@ -203,7 +225,6 @@ const Sync = {
     }
   },
 
-  // Sync a single sheet asynchronously in the background when local edits are made
   async syncSheet(sheetName, data) {
     if (!this.isEnabled()) return;
     const url = this.getUrl();
@@ -212,20 +233,21 @@ const Sync = {
     this.updateStatusUI('saving');
 
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           action: 'sync',
           sheet: sheetName,
-          rows: data,
-          token: CONFIG.secretToken
+          rows: data
         })
       });
 
-      // Delay status change briefly so the user sees the confirmation
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
+
       setTimeout(() => this.updateStatusUI('synced'), 500);
     } catch (e) {
       console.error(`☁️ Error syncing sheet ${sheetName}:`, e);
@@ -233,7 +255,6 @@ const Sync = {
     }
   },
 
-  // Sync a single item mutation (upsert/delete) in the background
   async syncMutation(mutationType, sheetName, item) {
     if (!this.isEnabled()) return;
     const url = this.getUrl();
@@ -242,19 +263,21 @@ const Sync = {
     this.updateStatusUI('saving');
 
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           action: 'mutation',
           mutationType: mutationType,
           sheet: sheetName,
-          item: item,
-          token: CONFIG.secretToken
+          item: item
         })
       });
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
 
       setTimeout(() => this.updateStatusUI('synced'), 500);
     } catch (e) {
@@ -263,7 +286,6 @@ const Sync = {
     }
   },
 
-  // Manual Download Action
   async downloadAllFromCloud() {
     const url = this.getUrl();
     if (!url) {
@@ -277,7 +299,15 @@ const Sync = {
 
     this.updateStatusUI('syncing');
     try {
-      const response = await fetch(`${url}?action=readAll&token=${CONFIG.secretToken}`);
+      const response = await fetch(`${url}?action=readAll`, {
+        headers: this.getAuthHeaders()
+      });
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return false;
+      }
+
       if (!response.ok) throw new Error('Không thể kết nối đến máy chủ.');
 
       const result = await response.json();
@@ -296,7 +326,6 @@ const Sync = {
     }
   },
 
-  // Manual Upload Action
   async uploadAllToCloud() {
     const url = this.getUrl();
     if (!url) {
@@ -304,7 +333,7 @@ const Sync = {
       return false;
     }
 
-    if (!confirm('Bạn có chắc chắn muốn đẩy toàn bộ dữ liệu hiện tại lên cơ sở dữ liệu đám mây? Việc này sẽ GHI ĐÈ toàn bộ dữ liệu đang có trên đám mây.')) {
+    if (!confirm('Bạn có chắc chắn muốn đẩy toàn bộ dữ liệu hiện tại lên cơ sở dữ liệu đám mây?')) {
       return false;
     }
 
@@ -325,7 +354,6 @@ const Sync = {
     }
   },
 
-  // Internal helper to upload all local data to Express
   async uploadAllToCloudInternal(url) {
     const payload = {
       action: 'syncAll',
@@ -336,18 +364,21 @@ const Sync = {
         notifications: Storage.getNotifications(),
         files: Storage.getFiles(),
         suggestions: Storage.getSuggestions()
-      },
-      token: CONFIG.secretToken
+      }
     };
 
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return false;
+      }
+
       return true;
     } catch (e) {
       console.error('☁️ Error during uploadAll:', e);
@@ -358,7 +389,6 @@ const Sync = {
   lastSyncTime: null,
 
   showConnectionInfo() {
-    // Check if the modal already exists
     let modal = document.getElementById('modal-sync-connection');
     if (modal) modal.remove();
 
@@ -387,15 +417,15 @@ const Sync = {
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Tần suất tự động đồng bộ:</span>
-                <strong style="color: var(--color-primary, #2b5797);">3 giây / lần (Đang chạy)</strong>
+                <strong style="color: var(--color-primary, #2b5797);">3 giây / lần</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Đồng bộ lần cuối:</span>
                 <strong style="color: var(--color-text, #1e293b);">${formattedTime}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
-                <span style="color: var(--color-text-secondary, #475569);">Mã Token truy cập:</span>
-                <strong style="color: var(--color-text-muted, #64748b); font-family: monospace;">HiepHoaSecret2026</strong>
+                <span style="color: var(--color-text-secondary, #475569);">Xác thực:</span>
+                <strong style="color: #10B981;">🔒 Session Token (Bảo mật)</strong>
               </div>
             </div>
           </div>
@@ -409,7 +439,6 @@ const Sync = {
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // Close on overlay click
     const overlay = document.getElementById('modal-sync-connection');
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();

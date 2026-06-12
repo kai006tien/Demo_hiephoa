@@ -2,25 +2,136 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const mongoose = require('mongoose');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const SECRET_TOKEN = process.env.SECRET_TOKEN || 'HiepHoaSecret2026';
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex');
+const BCRYPT_ROUNDS = 12;
 
-// Middleware to parse large JSON bodies (essential for file uploads)
+// ============================================
+// IN-MEMORY SESSION STORE
+// ============================================
+const activeSessions = new Map();
+const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 phút
+
+function createSessionToken() {
+  return crypto.randomBytes(48).toString('hex');
+}
+
+function cleanExpiredSessions() {
+  const now = Date.now();
+  for (const [token, session] of activeSessions) {
+    if (session.expiresAt < now) {
+      activeSessions.delete(token);
+    }
+  }
+}
+// Dọn session hết hạn mỗi 5 phút
+setInterval(cleanExpiredSessions, 5 * 60 * 1000);
+
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
+
+// 1. Helmet - Bảo vệ HTTP headers (XSS, clickjacking, MIME sniffing...)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// 2. CORS - Chỉ cho phép domain tin cậy
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : [];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Cho phép requests không có origin (curl, mobile, server-to-server)
+    // HOẶC same-origin requests (origin === undefined khi cùng domain)
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Blocked by CORS policy'));
+    }
+  },
+  credentials: true
+}));
+
+// 3. Rate Limiting tổng quát - 200 requests / 15 phút / IP
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/', generalLimiter);
+
+// 4. Rate Limiting đăng nhập - 5 lần / 15 phút / IP
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 15 phút.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// 5. Chống NoSQL Injection
+app.use(mongoSanitize());
+
+// 6. Chống HTTP Parameter Pollution
+app.use(hpp());
+
+// 7. Body parser với giới hạn kích thước
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
-// Serve static files from root directory
-app.use(express.static(__dirname));
+// 8. CHẶN truy cập file nhạy cảm trước khi serve static
+app.use((req, res, next) => {
+  const blockedPaths = [
+    '/server.js', '/.env', '/db.json',
+    '/package.json', '/package-lock.json',
+    '/.gitignore', '/.git'
+  ];
+  const lowerPath = req.path.toLowerCase();
+
+  if (blockedPaths.some(bp => lowerPath === bp) ||
+      lowerPath.startsWith('/node_modules') ||
+      lowerPath.startsWith('/.git/') ||
+      lowerPath.startsWith('/.env')) {
+    return res.status(403).json({ error: 'Truy cập bị từ chối.' });
+  }
+  next();
+});
+
+// 9. Serve static files
+app.use(express.static(__dirname, {
+  dotfiles: 'deny', // Từ chối truy cập file ẩn (.env, .git, etc.)
+  index: 'index.html'
+}));
 
 // ============================================
 // DATABASE CONNECTION & MODEL SCHEMAS
 // ============================================
 let isMongoConnected = false;
 
-// Schemas (Using strict: false to ensure flexibility with frontend properties)
 const AccountSchema = new mongoose.Schema({}, { strict: false, collection: 'accounts' });
 const DocumentSchema = new mongoose.Schema({}, { strict: false, collection: 'documents' });
 const VoteSchema = new mongoose.Schema({}, { strict: false, collection: 'votes' });
@@ -33,7 +144,7 @@ const FileSchema = new mongoose.Schema({
   description: String,
   createdAt: String,
   downloadUrl: String,
-  fileData: String // Large base64 Data URL string
+  fileData: String
 }, { strict: false, collection: 'files' });
 const SuggestionSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -54,7 +165,47 @@ const NotificationModel = mongoose.model('Notification', NotificationSchema);
 const FileModel = mongoose.model('File', FileSchema);
 const SuggestionModel = mongoose.model('Suggestion', SuggestionSchema);
 
-// Auto-seed function to initialize the database with default data if empty
+// ============================================
+// PASSWORD MIGRATION: Base64 → bcrypt
+// ============================================
+async function migratePasswordsToBcrypt() {
+  try {
+    const accounts = await AccountModel.find({});
+    let migratedCount = 0;
+
+    for (const account of accounts) {
+      // bcrypt hashes luôn bắt đầu bằng $2a$ hoặc $2b$
+      if (account.password && !account.password.startsWith('$2a$') && !account.password.startsWith('$2b$')) {
+        // Đây là mật khẩu Base64 cũ, cần chuyển đổi
+        let plainPassword;
+        try {
+          plainPassword = decodeURIComponent(Buffer.from(account.password, 'base64').toString());
+        } catch (e) {
+          plainPassword = account.password; // Nếu không decode được, dùng nguyên
+        }
+
+        const hashedPassword = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
+        await AccountModel.findOneAndUpdate(
+          { id: account.id },
+          { $set: { password: hashedPassword } }
+        );
+        migratedCount++;
+      }
+    }
+
+    if (migratedCount > 0) {
+      console.log(`🔐 Đã chuyển đổi ${migratedCount} mật khẩu từ Base64 sang bcrypt.`);
+    } else {
+      console.log('🔐 Tất cả mật khẩu đã ở định dạng bcrypt.');
+    }
+  } catch (err) {
+    console.error('❌ Lỗi khi chuyển đổi mật khẩu:', err.message);
+  }
+}
+
+// ============================================
+// AUTO-SEED DEFAULT DATA (chỉ khi DB trống)
+// ============================================
 async function initializeMongoDbData() {
   try {
     const accountCount = await AccountModel.countDocuments();
@@ -65,12 +216,15 @@ async function initializeMongoDbData() {
 
     console.log('🌱 Database is empty. Seeding default data to MongoDB...');
 
-    // Default accounts
+    // Default accounts - mật khẩu đã hash bằng bcrypt
+    const adminPassword = await bcrypt.hash('admin123', BCRYPT_ROUNDS);
+    const userPassword = await bcrypt.hash('123456', BCRYPT_ROUNDS);
+
     const defaultAccounts = [
       {
         id: 'admin_001',
         username: 'admin',
-        password: Buffer.from(encodeURIComponent('admin123')).toString('base64'),
+        password: adminPassword,
         fullName: 'Quản trị viên',
         role: 'admin',
         position: 'Quản trị hệ thống',
@@ -82,7 +236,7 @@ async function initializeMongoDbData() {
       {
         id: 'user_001',
         username: 'nguyenvana',
-        password: Buffer.from(encodeURIComponent('123456')).toString('base64'),
+        password: userPassword,
         fullName: 'Nguyễn Văn A',
         role: 'user',
         position: 'Phó phòng Hành chính',
@@ -94,7 +248,7 @@ async function initializeMongoDbData() {
       {
         id: 'user_002',
         username: 'tranthib',
-        password: Buffer.from(encodeURIComponent('123456')).toString('base64'),
+        password: userPassword,
         fullName: 'Trần Thị B',
         role: 'user',
         position: 'Chuyên viên Tổng hợp',
@@ -106,7 +260,7 @@ async function initializeMongoDbData() {
       {
         id: 'user_003',
         username: 'levanc',
-        password: Buffer.from(encodeURIComponent('123456')).toString('base64'),
+        password: userPassword,
         fullName: 'Lê Văn C',
         role: 'user',
         position: 'Trưởng phòng Kế hoạch',
@@ -127,11 +281,7 @@ async function initializeMongoDbData() {
         fileName: 'Ke_hoach_cong_tac_2026.docx',
         fileSize: 245760,
         status: 'published',
-        permissions: {
-          'user_001': 'view',
-          'user_002': 'edit',
-          'user_003': 'view'
-        },
+        permissions: { 'user_001': 'view', 'user_002': 'edit', 'user_003': 'view' },
         createdBy: 'admin_001',
         createdAt: new Date(2026, 0, 15).toISOString(),
         publishedAt: new Date(2026, 0, 16).toISOString()
@@ -143,11 +293,7 @@ async function initializeMongoDbData() {
         fileName: 'Quy_che_chi_tieu_noi_bo.docx',
         fileSize: 189440,
         status: 'finalized',
-        permissions: {
-          'user_001': 'view',
-          'user_002': 'view',
-          'user_003': 'view'
-        },
+        permissions: { 'user_001': 'view', 'user_002': 'view', 'user_003': 'view' },
         createdBy: 'admin_001',
         createdAt: new Date(2025, 11, 1).toISOString(),
         publishedAt: new Date(2025, 11, 5).toISOString(),
@@ -212,7 +358,7 @@ async function initializeMongoDbData() {
       {
         id: 'notif_002',
         title: 'Cập nhật hệ thống phần mềm',
-        content: 'Hệ thống sẽ được bảo trì và nâng cấp vào ngày 20/06/2026 từ 22h00 đến 06h00 ngày hôm sau. Trong thời gian này, hệ thống sẽ tạm ngừng hoạt động.',
+        content: 'Hệ thống sẽ được bảo trì và nâng cấp vào ngày 20/06/2026 từ 22h00 đến 06h00 ngày hôm sau.',
         priority: 'normal',
         readBy: [],
         createdBy: 'admin_001',
@@ -221,7 +367,7 @@ async function initializeMongoDbData() {
       {
         id: 'notif_003',
         title: 'Yêu cầu nộp báo cáo quý II/2026',
-        content: 'Đề nghị các phòng ban hoàn thành và nộp báo cáo kết quả hoạt động quý II/2026 trước ngày 25/06/2026. File báo cáo gửi qua hệ thống.',
+        content: 'Đề nghị các phòng ban hoàn thành và nộp báo cáo kết quả hoạt động quý II/2026 trước ngày 25/06/2026.',
         priority: 'urgent',
         readBy: [],
         createdBy: 'admin_001',
@@ -266,15 +412,15 @@ if (MONGODB_URI && !MONGODB_URI.includes('<password>')) {
       console.log('💚 Connected to MongoDB Atlas successfully.');
       isMongoConnected = true;
       await initializeMongoDbData();
+      await migratePasswordsToBcrypt();
     })
     .catch((err) => {
       console.error('❤️ MongoDB connection error:', err.message);
       console.log('⚠️ Running in local JSON storage fallback mode.');
     });
 } else {
-  console.log('⚠️ MONGODB_URI environment variable is empty or not configured. Running in local JSON storage fallback mode.');
+  console.log('⚠️ MONGODB_URI not configured. Running in local JSON storage fallback mode.');
 }
-
 
 // Local JSON File DB Fallback helpers
 const DB_FILE = path.join(__dirname, 'db.json');
@@ -302,21 +448,263 @@ function writeLocalDB(data) {
 }
 
 // ============================================
-// API ENDPOINTS
+// AUTHENTICATION MIDDLEWARE
 // ============================================
 
-// Authenticate helper
-function checkToken(req, res, next) {
-  // Token might be in body (POST) or in query (GET)
-  const token = req.method === 'POST' ? req.body.token : req.query.token;
-  if (token !== SECRET_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized: Sai mã bảo mật truy cập.' });
+// Xác thực session token từ Authorization header
+function checkAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Vui lòng đăng nhập.' });
   }
+
+  const token = authHeader.split(' ')[1];
+  const session = activeSessions.get(token);
+
+  if (!session) {
+    return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.' });
+  }
+
+  if (session.expiresAt < Date.now()) {
+    activeSessions.delete(token);
+    return res.status(401).json({ error: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
+  }
+
+  // Gia hạn session mỗi lần có request hợp lệ
+  session.expiresAt = Date.now() + SESSION_DURATION_MS;
+  req.userSession = session;
   next();
 }
 
-// GET /api/sync - Reads all data (Action: readAll)
-app.get('/api/sync', checkToken, async (req, res) => {
+// ============================================
+// API ENDPOINTS
+// ============================================
+
+// POST /api/login - Đăng nhập (xác thực phía server)
+app.post('/api/login', loginLimiter, async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Vui lòng nhập tên đăng nhập và mật khẩu.' });
+  }
+
+  // Sanitize input
+  const cleanUsername = String(username).trim().substring(0, 50);
+
+  try {
+    let account = null;
+
+    if (isMongoConnected) {
+      account = await AccountModel.findOne({ username: cleanUsername });
+    } else {
+      const db = readLocalDB();
+      account = (db.accounts || []).find(a => a.username === cleanUsername);
+    }
+
+    if (!account) {
+      return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
+    }
+
+    if (!account.active) {
+      return res.status(403).json({ error: 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.' });
+    }
+
+    // Kiểm tra mật khẩu bằng bcrypt
+    const isMatch = await bcrypt.compare(password, account.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
+    }
+
+    // Tạo session token
+    const sessionToken = createSessionToken();
+    const sessionData = {
+      userId: account.id,
+      username: account.username,
+      fullName: account.fullName,
+      role: account.role,
+      position: account.position,
+      loginTime: new Date().toISOString(),
+      expiresAt: Date.now() + SESSION_DURATION_MS
+    };
+
+    activeSessions.set(sessionToken, sessionData);
+
+    // Trả về token và thông tin user (KHÔNG trả về mật khẩu)
+    res.json({
+      success: true,
+      token: sessionToken,
+      session: {
+        userId: account.id,
+        username: account.username,
+        fullName: account.fullName,
+        role: account.role,
+        position: account.position,
+        loginTime: sessionData.loginTime
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
+  }
+});
+
+// POST /api/logout - Đăng xuất
+app.post('/api/logout', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    activeSessions.delete(token);
+  }
+  res.json({ success: true, message: 'Đã đăng xuất.' });
+});
+
+// POST /api/change-password - Đổi mật khẩu
+app.post('/api/change-password', checkAuth, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.userSession.userId;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu cũ và mới.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
+  }
+
+  try {
+    let account = null;
+    if (isMongoConnected) {
+      account = await AccountModel.findOne({ id: userId });
+    } else {
+      const db = readLocalDB();
+      account = (db.accounts || []).find(a => a.id === userId);
+    }
+
+    if (!account) {
+      return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, account.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Mật khẩu cũ không đúng.' });
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+    if (isMongoConnected) {
+      await AccountModel.findOneAndUpdate({ id: userId }, { $set: { password: hashedNewPassword } });
+    } else {
+      const db = readLocalDB();
+      const idx = (db.accounts || []).findIndex(a => a.id === userId);
+      if (idx !== -1) {
+        db.accounts[idx].password = hashedNewPassword;
+        writeLocalDB(db);
+      }
+    }
+
+    res.json({ success: true, message: 'Đổi mật khẩu thành công.' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
+  }
+});
+
+// POST /api/create-account - Tạo tài khoản mới (chỉ admin, hash mật khẩu server-side)
+app.post('/api/create-account', checkAuth, async (req, res) => {
+  if (req.userSession.role !== 'admin') {
+    return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này.' });
+  }
+
+  const { username, password, fullName, position, email, phone } = req.body;
+
+  if (!username || !password || !fullName) {
+    return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin bắt buộc.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 6 ký tự.' });
+  }
+
+  try {
+    // Kiểm tra trùng username
+    let existingAccount = null;
+    if (isMongoConnected) {
+      existingAccount = await AccountModel.findOne({ username: String(username).trim() });
+    } else {
+      const db = readLocalDB();
+      existingAccount = (db.accounts || []).find(a => a.username === String(username).trim());
+    }
+
+    if (existingAccount) {
+      return res.status(409).json({ error: 'Tên đăng nhập đã tồn tại.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const newAccount = {
+      id: 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+      username: String(username).trim(),
+      password: hashedPassword,
+      fullName: String(fullName).trim(),
+      role: 'user',
+      position: position ? String(position).trim() : '',
+      email: email ? String(email).trim() : '',
+      phone: phone ? String(phone).trim() : '',
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isMongoConnected) {
+      await AccountModel.create(newAccount);
+    } else {
+      const db = readLocalDB();
+      db.accounts = db.accounts || [];
+      db.accounts.push(newAccount);
+      writeLocalDB(db);
+    }
+
+    // Trả về account KHÔNG có password
+    const { password: _, ...safeAccount } = newAccount;
+    res.json({ success: true, account: safeAccount });
+  } catch (error) {
+    console.error('Create account error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
+  }
+});
+
+// POST /api/reset-password - Reset mật khẩu (chỉ admin)
+app.post('/api/reset-password', checkAuth, async (req, res) => {
+  if (req.userSession.role !== 'admin') {
+    return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này.' });
+  }
+
+  const { userId, newPassword } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'Thiếu ID tài khoản.' });
+  }
+
+  const passwordToSet = newPassword || '123456';
+  const hashedPassword = await bcrypt.hash(passwordToSet, BCRYPT_ROUNDS);
+
+  try {
+    if (isMongoConnected) {
+      await AccountModel.findOneAndUpdate({ id: userId }, { $set: { password: hashedPassword } });
+    } else {
+      const db = readLocalDB();
+      const idx = (db.accounts || []).findIndex(a => a.id === userId);
+      if (idx !== -1) {
+        db.accounts[idx].password = hashedPassword;
+        writeLocalDB(db);
+      }
+    }
+    res.json({ success: true, message: 'Đã đặt lại mật khẩu thành công.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
+  }
+});
+
+// GET /api/sync - Đọc dữ liệu (yêu cầu xác thực)
+app.get('/api/sync', checkAuth, async (req, res) => {
   const action = req.query.action || 'readAll';
   const sheet = req.query.sheet;
 
@@ -324,22 +712,35 @@ app.get('/api/sync', checkToken, async (req, res) => {
     if (isMongoConnected) {
       if (action === 'read' && sheet) {
         let data = [];
-        if (sheet === 'Accounts') data = await AccountModel.find({});
+        if (sheet === 'Accounts') {
+          // KHÔNG trả về password cho client
+          const rawAccounts = await AccountModel.find({});
+          data = rawAccounts.map(a => {
+            const obj = a.toObject();
+            delete obj.password;
+            return obj;
+          });
+        }
         else if (sheet === 'Documents') data = await DocumentModel.find({});
         else if (sheet === 'Votes') data = await VoteModel.find({});
         else if (sheet === 'Notifications') data = await NotificationModel.find({});
         else if (sheet === 'Suggestions') data = await SuggestionModel.find({});
-        else if (sheet === 'Files') data = await FileModel.find({}, { fileData: 0 }); // Hide base64 content
-        
+        else if (sheet === 'Files') data = await FileModel.find({}, { fileData: 0 });
+
         return res.json({ data });
       }
 
-      // Default action: readAll
-      const accounts = await AccountModel.find({});
+      // Default: readAll
+      const rawAccounts = await AccountModel.find({});
+      const accounts = rawAccounts.map(a => {
+        const obj = a.toObject();
+        delete obj.password;
+        return obj;
+      });
       const documents = await DocumentModel.find({});
       const votes = await VoteModel.find({});
       const notifications = await NotificationModel.find({});
-      const files = await FileModel.find({}, { fileData: 0 }); // Hide base64 content for speed
+      const files = await FileModel.find({}, { fileData: 0 });
       const suggestions = await SuggestionModel.find({});
 
       return res.json({
@@ -358,17 +759,21 @@ app.get('/api/sync', checkToken, async (req, res) => {
       if (action === 'read' && sheet) {
         const key = sheet.toLowerCase();
         let list = db[key] || [];
+        if (key === 'accounts') {
+          list = list.map(({ password, ...rest }) => rest);
+        }
         if (key === 'files') {
-          list = list.map(({ fileData, ...meta }) => meta); // Hide base64 content
+          list = list.map(({ fileData, ...meta }) => meta);
         }
         return res.json({ data: list });
       }
 
       // readAll
+      const accountsNoPassword = (db.accounts || []).map(({ password, ...rest }) => rest);
       const filesMetadataOnly = (db.files || []).map(({ fileData, ...meta }) => meta);
       return res.json({
         data: {
-          Accounts: db.accounts || [],
+          Accounts: accountsNoPassword,
           Documents: db.documents || [],
           Votes: db.votes || [],
           Notifications: db.notifications || [],
@@ -378,13 +783,14 @@ app.get('/api/sync', checkToken, async (req, res) => {
       });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Sync read error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
   }
 });
 
-// POST /api/sync - Handles sync, syncAll, and uploadFile actions
-app.post('/api/sync', checkToken, async (req, res) => {
-  const { action, sheet, rows, data, fileName, mimeType, base64, uploadedBy, description, mutationType, item } = req.body;
+// POST /api/sync - Xử lý sync, syncAll, mutation
+app.post('/api/sync', checkAuth, async (req, res) => {
+  const { action, sheet, rows, data, mutationType, item } = req.body;
 
   try {
     if (isMongoConnected) {
@@ -408,7 +814,10 @@ app.post('/api/sync', checkToken, async (req, res) => {
           const items = Array.isArray(item) ? item : [item];
           for (const it of items) {
             if (it.id) {
-              // Preserve fileData for files if client sends empty fileData
+              // Ngăn chặn cập nhật password qua sync (phải dùng API riêng)
+              if (sheet === 'Accounts') {
+                delete it.password;
+              }
               if (sheet === 'Files' && !it.fileData) {
                 const existing = await FileModel.findOne({ id: it.id });
                 if (existing && existing.fileData) {
@@ -438,8 +847,17 @@ app.post('/api/sync', checkToken, async (req, res) => {
 
       if (action === 'sync') {
         if (sheet === 'Accounts') {
-          await AccountModel.deleteMany({});
-          if (rows && rows.length > 0) await AccountModel.insertMany(rows);
+          // Sync accounts nhưng KHÔNG ghi đè password
+          if (rows && rows.length > 0) {
+            for (const row of rows) {
+              delete row.password; // Không cho client ghi password
+              await AccountModel.findOneAndUpdate(
+                { id: row.id },
+                { $set: row },
+                { upsert: false } // Không tạo mới qua sync
+              );
+            }
+          }
         } else if (sheet === 'Documents') {
           await DocumentModel.deleteMany({});
           if (rows && rows.length > 0) await DocumentModel.insertMany(rows);
@@ -453,10 +871,9 @@ app.post('/api/sync', checkToken, async (req, res) => {
           await SuggestionModel.deleteMany({});
           if (rows && rows.length > 0) await SuggestionModel.insertMany(rows);
         } else if (sheet === 'Files') {
-          // Sync files list from client, preserving existing fileData without querying it!
           const ids = (rows || []).map(r => r.id);
           await FileModel.deleteMany({ id: { $nin: ids } });
-          
+
           if (rows && rows.length > 0) {
             for (const row of rows) {
               const updateDoc = { ...row };
@@ -475,10 +892,7 @@ app.post('/api/sync', checkToken, async (req, res) => {
       }
 
       if (action === 'syncAll' && data) {
-        if (data.accounts) {
-          await AccountModel.deleteMany({});
-          if (data.accounts.length > 0) await AccountModel.insertMany(data.accounts);
-        }
+        // Sync tất cả collections NGOẠI TRỪ accounts (không sync password)
         if (data.documents) {
           await DocumentModel.deleteMany({});
           if (data.documents.length > 0) await DocumentModel.insertMany(data.documents);
@@ -496,10 +910,8 @@ app.post('/api/sync', checkToken, async (req, res) => {
           if (data.suggestions.length > 0) await SuggestionModel.insertMany(data.suggestions);
         }
         if (data.files) {
-          // Sync files list from client, preserving existing fileData without querying it!
           const ids = data.files.map(f => f.id);
           await FileModel.deleteMany({ id: { $nin: ids } });
-
           for (const row of data.files) {
             const updateDoc = { ...row };
             if (!updateDoc.fileData) {
@@ -509,6 +921,17 @@ app.post('/api/sync', checkToken, async (req, res) => {
               { id: row.id },
               { $set: updateDoc },
               { upsert: true }
+            );
+          }
+        }
+        // Sync accounts metadata only (not passwords)
+        if (data.accounts) {
+          for (const acc of data.accounts) {
+            delete acc.password;
+            await AccountModel.findOneAndUpdate(
+              { id: acc.id },
+              { $set: acc },
+              { upsert: false }
             );
           }
         }
@@ -529,6 +952,7 @@ app.post('/api/sync', checkToken, async (req, res) => {
           }
           for (const it of items) {
             if (!it.id) continue;
+            if (key === 'accounts') delete it.password;
             const idx = db[key].findIndex(x => x.id === it.id);
             if (idx !== -1) {
               if (key === 'files' && !it.fileData && db[key][idx].fileData) {
@@ -538,7 +962,8 @@ app.post('/api/sync', checkToken, async (req, res) => {
             } else {
               if (key === 'files') {
                 db[key].unshift(it);
-              } else {
+              } else if (key !== 'accounts') {
+                // Không cho tạo account mới qua sync
                 db[key].push(it);
               }
             }
@@ -560,16 +985,23 @@ app.post('/api/sync', checkToken, async (req, res) => {
 
       if (action === 'sync') {
         if (key === 'files') {
-          // Preserve base64
           const fileDataMap = {};
           (db.files || []).forEach(f => { if (f.fileData) fileDataMap[f.id] = f.fileData; });
-
           db.files = (rows || []).map(row => {
             if (!row.fileData && fileDataMap[row.id]) {
               row.fileData = fileDataMap[row.id];
             }
             return row;
           });
+        } else if (key === 'accounts') {
+          // Không sync password từ client
+          for (const row of (rows || [])) {
+            delete row.password;
+            const idx = (db.accounts || []).findIndex(a => a.id === row.id);
+            if (idx !== -1) {
+              db.accounts[idx] = { ...db.accounts[idx], ...row };
+            }
+          }
         } else {
           db[key] = rows || [];
         }
@@ -578,22 +1010,28 @@ app.post('/api/sync', checkToken, async (req, res) => {
       }
 
       if (action === 'syncAll' && data) {
-        if (data.accounts) db.accounts = data.accounts;
         if (data.documents) db.documents = data.documents;
         if (data.votes) db.votes = data.votes;
         if (data.notifications) db.notifications = data.notifications;
         if (data.suggestions) db.suggestions = data.suggestions;
         if (data.files) {
-          // Preserve base64
           const fileDataMap = {};
           (db.files || []).forEach(f => { if (f.fileData) fileDataMap[f.id] = f.fileData; });
-
           db.files = data.files.map(row => {
             if (!row.fileData && fileDataMap[row.id]) {
               row.fileData = fileDataMap[row.id];
             }
             return row;
           });
+        }
+        if (data.accounts) {
+          for (const acc of data.accounts) {
+            delete acc.password;
+            const idx = (db.accounts || []).findIndex(a => a.id === acc.id);
+            if (idx !== -1) {
+              db.accounts[idx] = { ...db.accounts[idx], ...acc };
+            }
+          }
         }
         writeLocalDB(db);
         return res.json({ success: true, message: 'Synced all local data' });
@@ -602,22 +1040,21 @@ app.post('/api/sync', checkToken, async (req, res) => {
 
     res.status(400).json({ error: 'Unknown or unsupported action' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Sync write error:', error);
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
   }
 });
 
-// POST /api/uploadFile - Upload file directly to db
-app.post('/api/uploadFile', checkToken, async (req, res) => {
+// POST /api/uploadFile - Upload file (yêu cầu xác thực)
+app.post('/api/uploadFile', checkAuth, async (req, res) => {
   const { id, fileName, mimeType, base64, uploadedBy, description } = req.body;
 
   if (!fileName || !base64) {
     return res.status(400).json({ success: false, error: 'Thiếu tên file hoặc dữ liệu base64.' });
   }
 
-  // Generate unique ID if not provided by the client
   const fileId = id || 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-  
-  // Make sure base64 starts with the correct prefix
+
   let fullDataUrl = base64;
   if (!base64.startsWith('data:')) {
     fullDataUrl = `data:${mimeType || 'application/octet-stream'};base64,${base64}`;
@@ -639,7 +1076,6 @@ app.post('/api/uploadFile', checkToken, async (req, res) => {
       });
       await newFile.save();
     } else {
-      // Local fallback
       const db = readLocalDB();
       const newFile = {
         id: fileId,
@@ -656,18 +1092,15 @@ app.post('/api/uploadFile', checkToken, async (req, res) => {
       writeLocalDB(db);
     }
 
-    res.json({
-      success: true,
-      downloadUrl,
-      fileId
-    });
+    res.json({ success: true, downloadUrl, fileId });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ.' });
   }
 });
 
-// GET /api/download/:id - Direct download link serving raw binary content
-app.get('/api/download/:id', async (req, res) => {
+// GET /api/download/:id - Tải file (yêu cầu xác thực)
+app.get('/api/download/:id', checkAuth, async (req, res) => {
   const fileId = req.params.id;
 
   try {
@@ -684,39 +1117,44 @@ app.get('/api/download/:id', async (req, res) => {
       return res.status(404).send('Không tìm thấy tệp tin hoặc tệp tin chưa được tải lên.');
     }
 
-    // Split base64 payload from data url prefix: "data:mimeType;base64,payload" using a safe split/trim method
     if (!fileRecord.fileData.startsWith('data:')) {
-      return res.status(500).send('Dữ liệu tệp tin bị hỏng hoặc không đúng định dạng.');
+      return res.status(500).send('Dữ liệu tệp tin bị hỏng.');
     }
 
     const parts = fileRecord.fileData.split(';base64,');
     if (parts.length !== 2) {
-      return res.status(500).send('Dữ liệu tệp tin bị hỏng hoặc không đúng định dạng.');
+      return res.status(500).send('Dữ liệu tệp tin bị hỏng.');
     }
 
-    const contentType = parts[0].substring(5); // Remove 'data:'
-    const base64Data = parts[1].trim(); // Trim trailing/leading whitespace or newlines
+    const contentType = parts[0].substring(5);
+    const base64Data = parts[1].trim();
     const fileBuffer = Buffer.from(base64Data, 'base64');
 
-    // Prevent caching
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('Content-Type', contentType);
-    
-    // Use proper RFC5987 URL encoding format for Vietnamese characters in filename
+
     const encodedFileName = encodeURIComponent(fileRecord.fileName).replace(/'/g, "%27");
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
-    
+
     res.send(fileBuffer);
   } catch (error) {
-    res.status(500).send(`Lỗi máy chủ khi tải file: ${error.message}`);
+    console.error('Download error:', error);
+    res.status(500).send('Lỗi máy chủ nội bộ.');
   }
 });
 
-// If wrong path, serve index.html
+// Catch-all: serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Global error handler - ẩn thông tin lỗi chi tiết
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🔒 Security hardened: Helmet, Rate-Limit, CORS, bcrypt, mongo-sanitize enabled`);
 });

@@ -179,20 +179,22 @@ const FileManager = {
         try {
           const response = await fetch('/api/uploadFile', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: Sync.getAuthHeaders(),
             body: JSON.stringify({
               id: fileId,
               fileName: file.name,
               mimeType: file.type,
               base64: base64Payload,
               uploadedBy: Auth.getSession().userId,
-              description: description.trim(),
-              token: CONFIG.secretToken
+              description: description.trim()
             })
           });
           
+          if (response.status === 401) {
+            Sync.handleUnauthorized();
+            return;
+          }
+
           if (response.ok) {
             const result = await response.json();
             if (result.success) {
@@ -233,25 +235,50 @@ const FileManager = {
   },
 
   // Download file
-  downloadFile(id) {
+  async downloadFile(id) {
     const file = Storage.getFiles().find(f => f.id === id);
     if (!file) return;
 
     Utils.showToast('info', 'Tải xuống', `Đang tải "${file.fileName}"...`);
     
-    // Nếu là file đã tải lên Google Drive, tải trực tiếp từ Drive
+    // Nếu file có downloadUrl (trên server), tải qua API có xác thực
     if (file.downloadUrl) {
-      setTimeout(() => {
-        window.open(file.downloadUrl, '_blank');
-      }, 500);
+      try {
+        const token = Auth.getAuthToken();
+        const response = await fetch(file.downloadUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 401) {
+          Sync.handleUnauthorized();
+          return;
+        }
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = file.fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        } else {
+          Utils.showToast('error', 'Lỗi', 'Không thể tải file.');
+        }
+      } catch (err) {
+        console.error('Download error:', err);
+        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối khi tải file.');
+      }
     } 
-    // Nếu có dữ liệu base64 (file lưu cục bộ), tải file thật
+    // Nếu có dữ liệu base64 local
     else if (file.fileData) {
       setTimeout(() => {
         Utils.downloadBase64File(file.fileName, file.fileData);
       }, 500);
     } 
-    // Fallback nếu không có file thật (file từ bản cũ hoặc bị lỗi)
+    // Fallback
     else {
       setTimeout(() => {
         Utils.downloadFile(file.fileName, `Tên file: ${file.fileName}\nMô tả: ${file.description || 'Không có mô tả'}\nNgày gửi: ${Utils.formatDateTime(file.createdAt)}\n\n(Lưu ý: Nội dung file gốc không khả dụng trên trình duyệt này)`);

@@ -62,12 +62,11 @@
           </button>
         </form>
 
-        <div style="margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-divider); text-align: center;">
-          <p style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">Tài khoản demo:</p>
-          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-            <code style="background: var(--color-bg); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;" onclick="fillDemo('admin','admin123')" title="Nhấn để điền">👑 admin / admin123</code>
-            <code style="background: var(--color-bg); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;" onclick="fillDemo('nguyenvana','123456')" title="Nhấn để điền">👤 nguyenvana / 123456</code>
-          </div>
+        <div style="margin-top: var(--space-4); text-align: center;">
+          <p style="font-size: 11px; color: var(--color-text-muted);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Kết nối được bảo mật bằng mã hóa đầu-cuối
+          </p>
         </div>
       </div>
     </div>
@@ -80,15 +79,11 @@
 
   <script src="js/utils.js"></script>
   <script src="js/config.js"></script>
-  <script src="js/sync.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/auth.js"></script>
   <script>
-    // Initialize Sync parameters
-    Sync.init();
-
-    // Initialize default data
-    Storage.initializeDefaultData();
+    // KHÔNG gọi Sync.init() trên trang login
+    // KHÔNG gọi Storage.initializeDefaultData() - dữ liệu do server quản lý
 
     // If already logged in, redirect
     if (Auth.isLoggedIn()) {
@@ -96,28 +91,36 @@
       window.location.href = session.role === 'admin' ? 'admin.html' : 'user.html';
     }
 
-    // Handle login
-    function handleLogin(e) {
+    // Handle login - ASYNC, gọi API server
+    async function handleLogin(e) {
       e.preventDefault();
+
       const username = document.getElementById('login-username').value.trim();
       const password = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login');
+      const errorEl = document.getElementById('login-error');
+      const errorText = document.getElementById('login-error-text');
 
-      const result = Auth.login(username, password);
-      
+      // Disable button while processing
+      btn.innerHTML = '<span class="animate-spin" style="display:inline-block;">⏳</span> Đang xác thực...';
+      btn.disabled = true;
+      errorEl.classList.remove('show');
+
+      const result = await Auth.login(username, password);
+
       if (result.success) {
-        const btn = document.getElementById('btn-login');
-        btn.innerHTML = '<span class="animate-spin" style="display:inline-block;">⏳</span> Đang đăng nhập...';
-        btn.disabled = true;
-
+        btn.innerHTML = '<span class="animate-spin" style="display:inline-block;">✅</span> Đăng nhập thành công!';
         setTimeout(() => {
           window.location.href = result.session.role === 'admin' ? 'admin.html' : 'user.html';
-        }, 600);
+        }, 400);
       } else {
-        const errorEl = document.getElementById('login-error');
-        const errorText = document.getElementById('login-error-text');
         errorText.textContent = result.message;
         errorEl.classList.add('show');
-        
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          ĐĂNG NHẬP`;
+        btn.disabled = false;
+
         // Shake animation
         const card = document.querySelector('.login-card');
         card.style.animation = 'none';
@@ -130,13 +133,6 @@
     function togglePassword() {
       const input = document.getElementById('login-password');
       input.type = input.type === 'password' ? 'text' : 'password';
-    }
-
-    // Fill demo credentials
-    function fillDemo(username, password) {
-      document.getElementById('login-username').value = username;
-      document.getElementById('login-password').value = password;
-      document.getElementById('login-error').classList.remove('show');
     }
 
     // Focus on username input

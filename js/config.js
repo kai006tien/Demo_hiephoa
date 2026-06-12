@@ -7,8 +7,7 @@ const CONFIG = {
   googleScriptUrl: '/api/sync',
 
   // Trạng thái kích hoạt đồng bộ hóa qua cơ sở dữ liệu
-  syncEnabled: true,
+  syncEnabled: true
 
-  // Token bí mật bảo mật truy cập
-  secretToken: 'HiepHoaSecret2026'
+  // Token KHÔNG được lưu ở đây nữa - sử dụng session token từ server
 };
