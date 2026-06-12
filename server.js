@@ -12,6 +12,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 10000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex');
 const BCRYPT_ROUNDS = 12;
@@ -93,10 +94,10 @@ const generalLimiter = rateLimit({
 });
 app.use('/api/', generalLimiter);
 
-// 4. Rate Limiting đăng nhập - 5 lần / 15 phút / IP
+// 4. Rate Limiting đăng nhập - 30 lần / 15 phút / IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 30,
   message: { error: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 15 phút.' },
   standardHeaders: true,
   legacyHeaders: false
