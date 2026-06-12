@@ -248,6 +248,8 @@ async function migratePasswordsToBcrypt() {
 // ============================================
 // AUTO-SEED DEFAULT DATA (chỉ khi DB trống)
 // ============================================
+// AUTO-SEED DEFAULT DATA (chỉ khi DB trống - Chỉ tạo Admin)
+// ============================================
 async function initializeMongoDbData() {
   try {
     const accountCount = await AccountModel.countDocuments();
@@ -258,9 +260,8 @@ async function initializeMongoDbData() {
 
     console.log('🌱 Database is empty. Seeding default data to MongoDB...');
 
-    // Default accounts - mật khẩu đã hash bằng bcrypt
+    // Default accounts - mật khẩu đã hash bằng bcrypt (Chỉ tạo Admin)
     const adminPassword = await bcrypt.hash('admin123', BCRYPT_ROUNDS);
-    const userPassword = await bcrypt.hash('123456', BCRYPT_ROUNDS);
 
     const defaultAccounts = [
       {
@@ -274,172 +275,11 @@ async function initializeMongoDbData() {
         phone: '0987654321',
         active: true,
         createdAt: new Date(2024, 0, 1).toISOString()
-      },
-      {
-        id: 'user_001',
-        username: 'nguyenvana',
-        password: userPassword,
-        fullName: 'Nguyễn Văn A',
-        role: 'user',
-        position: 'Phó phòng Hành chính',
-        email: 'nguyenvana@hiephoa.gov.vn',
-        phone: '0912345678',
-        active: true,
-        createdAt: new Date(2024, 1, 15).toISOString()
-      },
-      {
-        id: 'user_002',
-        username: 'tranthib',
-        password: userPassword,
-        fullName: 'Trần Thị B',
-        role: 'user',
-        position: 'Chuyên viên Tổng hợp',
-        email: 'tranthib@hiephoa.gov.vn',
-        phone: '0923456789',
-        active: true,
-        createdAt: new Date(2024, 2, 20).toISOString()
-      },
-      {
-        id: 'user_003',
-        username: 'levanc',
-        password: userPassword,
-        fullName: 'Lê Văn C',
-        role: 'user',
-        position: 'Trưởng phòng Kế hoạch',
-        email: 'levanc@hiephoa.gov.vn',
-        phone: '0934567890',
-        active: true,
-        createdAt: new Date(2024, 3, 10).toISOString()
       }
     ];
     await AccountModel.insertMany(defaultAccounts);
 
-    // Default documents
-    const defaultDocuments = [
-      {
-        id: 'doc_001',
-        title: 'Kế hoạch công tác năm 2026',
-        description: 'Kế hoạch triển khai các nhiệm vụ trọng tâm năm 2026 của đơn vị',
-        fileName: 'Ke_hoach_cong_tac_2026.docx',
-        fileSize: 245760,
-        status: 'published',
-        permissions: { 'user_001': 'view', 'user_002': 'edit', 'user_003': 'view' },
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 0, 15).toISOString(),
-        publishedAt: new Date(2026, 0, 16).toISOString()
-      },
-      {
-        id: 'doc_002',
-        title: 'Quy chế chi tiêu nội bộ',
-        description: 'Quy chế quản lý và sử dụng ngân sách nội bộ đơn vị',
-        fileName: 'Quy_che_chi_tieu_noi_bo.docx',
-        fileSize: 189440,
-        status: 'finalized',
-        permissions: { 'user_001': 'view', 'user_002': 'view', 'user_003': 'view' },
-        createdBy: 'admin_001',
-        createdAt: new Date(2025, 11, 1).toISOString(),
-        publishedAt: new Date(2025, 11, 5).toISOString(),
-        finalizedAt: new Date(2025, 11, 10).toISOString()
-      },
-      {
-        id: 'doc_003',
-        title: 'Dự thảo báo cáo tổng kết quý II/2026',
-        description: 'Dự thảo báo cáo kết quả hoạt động quý II năm 2026',
-        fileName: 'Du_thao_bao_cao_Q2_2026.docx',
-        fileSize: 156672,
-        status: 'draft',
-        permissions: {},
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 5, 1).toISOString()
-      }
-    ];
-    await DocumentModel.insertMany(defaultDocuments);
-
-    // Default votes
-    const defaultVotes = [
-      {
-        id: 'vote_001',
-        title: 'Phê duyệt kế hoạch tổ chức Hội nghị tổng kết 2025',
-        description: 'Biểu quyết thông qua kế hoạch tổ chức Hội nghị tổng kết năm 2025, dự kiến tổ chức vào ngày 20/01/2026 tại Hội trường lớn.',
-        status: 'active',
-        voters: [
-          { userId: 'user_001', vote: 'agree', comment: 'Đồng ý với kế hoạch', votedAt: new Date(2026, 5, 10, 9, 30).toISOString() },
-          { userId: 'user_002', vote: 'agree', comment: '', votedAt: new Date(2026, 5, 10, 10, 15).toISOString() }
-        ],
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 5, 10, 8, 0).toISOString()
-      },
-      {
-        id: 'vote_002',
-        title: 'Điều chỉnh quy chế làm việc ngoài giờ',
-        description: 'Biểu quyết về việc sửa đổi quy chế làm thêm giờ, bổ sung chế độ phụ cấp cho nhân viên làm việc ngoài giờ hành chính.',
-        status: 'closed',
-        voters: [
-          { userId: 'user_001', vote: 'agree', comment: 'Rất cần thiết', votedAt: new Date(2026, 4, 20, 14, 30).toISOString() },
-          { userId: 'user_002', vote: 'disagree', comment: 'Cần xem lại mức phụ cấp', votedAt: new Date(2026, 4, 20, 15, 0).toISOString() },
-          { userId: 'user_003', vote: 'agree', comment: '', votedAt: new Date(2026, 4, 21, 8, 30).toISOString() }
-        ],
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 4, 20, 8, 0).toISOString(),
-        closedAt: new Date(2026, 4, 22, 17, 0).toISOString()
-      }
-    ];
-    await VoteModel.insertMany(defaultVotes);
-
-    // Default notifications
-    const defaultNotifs = [
-      {
-        id: 'notif_001',
-        title: 'Thông báo lịch họp giao ban tháng 6/2026',
-        content: 'Kính mời các đồng chí tham dự cuộc họp giao ban định kỳ tháng 6/2026 vào lúc 8h00 ngày 15/06/2026 tại Phòng họp số 1.',
-        priority: 'important',
-        readBy: ['user_001'],
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 5, 10, 7, 0).toISOString()
-      },
-      {
-        id: 'notif_002',
-        title: 'Cập nhật hệ thống phần mềm',
-        content: 'Hệ thống sẽ được bảo trì và nâng cấp vào ngày 20/06/2026 từ 22h00 đến 06h00 ngày hôm sau.',
-        priority: 'normal',
-        readBy: [],
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 5, 9, 15, 0).toISOString()
-      },
-      {
-        id: 'notif_003',
-        title: 'Yêu cầu nộp báo cáo quý II/2026',
-        content: 'Đề nghị các phòng ban hoàn thành và nộp báo cáo kết quả hoạt động quý II/2026 trước ngày 25/06/2026.',
-        priority: 'urgent',
-        readBy: [],
-        createdBy: 'admin_001',
-        createdAt: new Date(2026, 5, 8, 9, 0).toISOString()
-      }
-    ];
-    await NotificationModel.insertMany(defaultNotifs);
-
-    // Default files
-    const defaultFiles = [
-      {
-        id: 'file_001',
-        fileName: 'Bao_cao_thang_5.docx',
-        fileSize: 102400,
-        uploadedBy: 'user_001',
-        description: 'Báo cáo kết quả tháng 5/2026 - Phòng Hành chính',
-        createdAt: new Date(2026, 5, 5, 14, 30).toISOString()
-      },
-      {
-        id: 'file_002',
-        fileName: 'De_xuat_ngan_sach_Q3.xlsx',
-        fileSize: 87040,
-        uploadedBy: 'user_003',
-        description: 'Đề xuất ngân sách hoạt động quý III/2026',
-        createdAt: new Date(2026, 5, 6, 10, 0).toISOString()
-      }
-    ];
-    await FileModel.insertMany(defaultFiles);
-
-    console.log('✅ MongoDB database auto-seeded successfully.');
+    console.log('✅ MongoDB database auto-seeded successfully with Admin account only.');
   } catch (err) {
     console.error('❌ Error during auto-seeding:', err.message);
   }
@@ -1186,6 +1026,51 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
 });
 
 
+
+// TEMPORARY CLEAN ENDPOINT (WILL BE REMOVED AFTER RUNNING)
+app.get('/api/clean-database', async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      await DocumentModel.deleteMany({});
+      await VoteModel.deleteMany({});
+      await NotificationModel.deleteMany({});
+      await FileModel.deleteMany({});
+      await SuggestionModel.deleteMany({});
+      await AccountModel.deleteMany({ username: { $ne: 'admin' } });
+      
+      // Khởi tạo lại admin nếu vô tình bị xóa mất
+      const adminExists = await AccountModel.findOne({ username: 'admin' });
+      if (!adminExists) {
+        const adminPassword = await bcrypt.hash('admin123', BCRYPT_ROUNDS);
+        await AccountModel.create({
+          id: 'admin_001',
+          username: 'admin',
+          password: adminPassword,
+          fullName: 'Quản trị viên',
+          role: 'admin',
+          position: 'Quản trị hệ thống',
+          email: 'admin@hiephoa.gov.vn',
+          phone: '0987654321',
+          active: true,
+          createdAt: new Date().toISOString()
+        });
+      }
+      return res.json({ success: true, message: 'MongoDB database cleared successfully. Only admin retained.' });
+    } else {
+      const db = readLocalDB();
+      db.documents = [];
+      db.votes = [];
+      db.notifications = [];
+      db.files = [];
+      db.suggestions = [];
+      db.accounts = (db.accounts || []).filter(a => a.username === 'admin');
+      writeLocalDB(db);
+      return res.json({ success: true, message: 'Local JSON database cleared successfully. Only admin retained.' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
