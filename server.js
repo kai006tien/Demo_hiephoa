@@ -330,6 +330,52 @@ async function initializeMongoDbData() {
   }
 }
 
+// ============================================
+// DATABASE REPAIR: Khôi phục ID bị thiếu
+// ============================================
+async function repairMissingIds() {
+  try {
+    if (!isMongoConnected) return;
+    console.log('🔧 Đang kiểm tra và sửa lỗi ID bị thiếu trong database...');
+    
+    // Accounts
+    const accounts = await AccountModel.find({ id: { $exists: false } });
+    for (const doc of accounts) {
+      const newId = doc.username === 'admin' ? 'admin_001' : 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      await AccountModel.updateOne({ _id: doc._id }, { $set: { id: newId } });
+      console.log(`🔧 Đã bổ sung ID cho tài khoản: ${doc.username} -> ${newId}`);
+    }
+
+    // Documents
+    const documents = await DocumentModel.find({ id: { $exists: false } });
+    for (const doc of documents) {
+      const newId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      await DocumentModel.updateOne({ _id: doc._id }, { $set: { id: newId } });
+      console.log(`🔧 Đã bổ sung ID cho tài liệu: ${doc.title} -> ${newId}`);
+    }
+
+    // Votes
+    const votes = await VoteModel.find({ id: { $exists: false } });
+    for (const doc of votes) {
+      const newId = 'vote_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      await VoteModel.updateOne({ _id: doc._id }, { $set: { id: newId } });
+      console.log(`🔧 Đã bổ sung ID cho biểu quyết: ${doc.title} -> ${newId}`);
+    }
+
+    // Notifications
+    const notifications = await NotificationModel.find({ id: { $exists: false } });
+    for (const doc of notifications) {
+      const newId = 'notif_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      await NotificationModel.updateOne({ _id: doc._id }, { $set: { id: newId } });
+      console.log(`🔧 Đã bổ sung ID cho thông báo: ${doc.title} -> ${newId}`);
+    }
+
+    console.log('✅ Hoàn tất sửa lỗi ID.');
+  } catch (err) {
+    console.error('❌ Lỗi khi sửa ID bị thiếu:', err.message);
+  }
+}
+
 // Connect to MongoDB Atlas
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -340,6 +386,7 @@ if (MONGODB_URI && !MONGODB_URI.includes('<password>')) {
       isMongoConnected = true;
       await initializeMongoDbData();
       await migratePasswordsToBcrypt();
+      await repairMissingIds();
     })
     .catch((err) => {
       console.error('❤️ MongoDB connection error:', err.message);
@@ -1071,27 +1118,6 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
 });
 
 
-
-app.get('/api/inspect-db', async (req, res) => {
-  try {
-    const rawAccounts = await AccountModel.find({});
-    res.json({
-      accounts: rawAccounts,
-      accountsMapped: rawAccounts.map(a => {
-        const obj = a.toObject();
-        return {
-          _id: obj._id,
-          id: obj.id,
-          username: obj.username,
-          hasIdInDoc: 'id' in a._doc,
-          idInDocValue: a._doc.id
-        };
-      })
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
