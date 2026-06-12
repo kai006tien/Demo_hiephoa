@@ -27,6 +27,7 @@ const App = {
 
     // Listen for cloud data sync to reload views dynamically
     document.addEventListener('hha_data_synced', () => {
+      Notifications.updateBadge();
       App.navigateTo(App.currentSection);
     });
 
