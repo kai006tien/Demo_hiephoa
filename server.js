@@ -1027,51 +1027,6 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
 
 
 
-// TEMPORARY CLEAN ENDPOINT (WILL BE REMOVED AFTER RUNNING)
-app.get('/api/clean-database', async (req, res) => {
-  try {
-    if (isMongoConnected) {
-      await DocumentModel.deleteMany({});
-      await VoteModel.deleteMany({});
-      await NotificationModel.deleteMany({});
-      await FileModel.deleteMany({});
-      await SuggestionModel.deleteMany({});
-      await AccountModel.deleteMany({ username: { $ne: 'admin' } });
-      
-      // Khởi tạo lại admin nếu vô tình bị xóa mất
-      const adminExists = await AccountModel.findOne({ username: 'admin' });
-      if (!adminExists) {
-        const adminPassword = await bcrypt.hash('admin123', BCRYPT_ROUNDS);
-        await AccountModel.create({
-          id: 'admin_001',
-          username: 'admin',
-          password: adminPassword,
-          fullName: 'Quản trị viên',
-          role: 'admin',
-          position: 'Quản trị hệ thống',
-          email: 'admin@hiephoa.gov.vn',
-          phone: '0987654321',
-          active: true,
-          createdAt: new Date().toISOString()
-        });
-      }
-      return res.json({ success: true, message: 'MongoDB database cleared successfully. Only admin retained.' });
-    } else {
-      const db = readLocalDB();
-      db.documents = [];
-      db.votes = [];
-      db.notifications = [];
-      db.files = [];
-      db.suggestions = [];
-      db.accounts = (db.accounts || []).filter(a => a.username === 'admin');
-      writeLocalDB(db);
-      return res.json({ success: true, message: 'Local JSON database cleared successfully. Only admin retained.' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
