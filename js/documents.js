@@ -241,13 +241,22 @@ const Documents = {
 
         if (response.ok) {
           const result = await response.json();
-          if (result.success) {
+          if (result.success && result.downloadUrl) {
             downloadUrl = result.downloadUrl;
+          } else {
+            console.error('Upload response không hợp lệ:', result);
+            Utils.showToast('error', 'Lỗi', 'Tải file lên không thành công. Vui lòng thử lại.');
+            return;
           }
+        } else {
+          const errText = await response.text();
+          console.error('Upload failed:', response.status, errText);
+          Utils.showToast('error', 'Lỗi', `Không thể tải file lên máy chủ (Mã lỗi: ${response.status}).`);
+          return;
         }
       } catch (err) {
         console.error('Lỗi upload file:', err);
-        Utils.showToast('error', 'Lỗi', 'Không thể tải file lên máy chủ.');
+        Utils.showToast('error', 'Lỗi', 'Không thể tải file lên máy chủ. Vui lòng kiểm tra kết nối mạng.');
         return;
       }
     }
@@ -408,6 +417,22 @@ const Documents = {
 
         if (response.ok) {
           const blob = await response.blob();
+          
+          // Kiểm tra blob có dữ liệu thực sự không
+          if (!blob || blob.size === 0) {
+            console.error('Download error: File trống (blob size = 0)');
+            Utils.showToast('error', 'Lỗi', 'File tải về bị trống. File có thể đã bị xóa trên máy chủ.');
+            return;
+          }
+
+          // Kiểm tra nếu response trả về là HTML error page (không phải file thực)
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('text/html')) {
+            console.error('Download error: Server trả về HTML thay vì file');
+            Utils.showToast('error', 'Lỗi', 'Không tìm thấy file trên máy chủ. Vui lòng tải lại văn bản.');
+            return;
+          }
+
           const blobUrl = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = blobUrl;
@@ -415,19 +440,20 @@ const Documents = {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-          URL.revokeObjectURL(blobUrl);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+          Utils.showToast('success', 'Thành công', `Đã tải "${doc.fileName}" thành công.`);
         } else {
-          Utils.showToast('error', 'Lỗi', 'Không thể tải file.');
+          const errText = await response.text().catch(() => '');
+          console.error('Download error:', response.status, errText);
+          Utils.showToast('error', 'Lỗi', `Không thể tải file (Mã lỗi: ${response.status}). File có thể không tồn tại trên máy chủ.`);
         }
       } catch (err) {
         console.error('Download error:', err);
-        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối khi tải file.');
+        Utils.showToast('error', 'Lỗi', 'Lỗi kết nối khi tải file. Vui lòng kiểm tra mạng và thử lại.');
       }
     } else {
-      // Fallback for legacy items without downloadUrl
-      setTimeout(() => {
-        Utils.downloadFile(doc.fileName, `Tiêu đề văn bản: ${doc.title}\nMô tả: ${doc.description || 'Không có mô tả'}\nNgày tạo: ${Utils.formatDateTime(doc.createdAt)}\nTrạng thái: ${doc.status}\n\n(Lưu ý: Văn bản này được tạo trước phiên bản tải file thực tế)`);
-      }, 500);
+      // Không có downloadUrl - file chưa được upload lên server
+      Utils.showToast('error', 'Lỗi', 'Văn bản này chưa có file đính kèm. Vui lòng chỉnh sửa và tải lên file.');
     }
   },
 

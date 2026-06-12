@@ -161,6 +161,7 @@ const DocumentSchema = new mongoose.Schema({
   description: String,
   fileName: String,
   fileSize: Number,
+  downloadUrl: String,
   status: String,
   permissions: mongoose.Schema.Types.Mixed,
   createdBy: String,
@@ -1027,12 +1028,21 @@ app.post('/api/uploadFile', checkAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Thiếu tên file hoặc dữ liệu base64.' });
   }
 
+  // Validate base64 data có nội dung
+  const rawBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  if (!rawBase64 || rawBase64.length === 0) {
+    return res.status(400).json({ success: false, error: 'Dữ liệu file trống.' });
+  }
+
   const fileId = id || 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
   let fullDataUrl = base64;
   if (!base64.startsWith('data:')) {
     fullDataUrl = `data:${mimeType || 'application/octet-stream'};base64,${base64}`;
   }
+
+  const calculatedSize = Buffer.from(rawBase64, 'base64').length;
+  console.log(`Upload: Nhận file "${fileName}" (${calculatedSize} bytes), id=${fileId}`);
 
   try {
     const downloadUrl = `/api/download/${fileId}`;
@@ -1041,7 +1051,7 @@ app.post('/api/uploadFile', checkAuth, async (req, res) => {
       const newFile = new FileModel({
         id: fileId,
         fileName,
-        fileSize: Buffer.from(base64.split(',')[1] || base64, 'base64').length,
+        fileSize: calculatedSize,
         uploadedBy: uploadedBy || 'Không xác định',
         description: description || '',
         createdAt: new Date().toISOString(),
@@ -1049,12 +1059,20 @@ app.post('/api/uploadFile', checkAuth, async (req, res) => {
         fileData: fullDataUrl
       });
       await newFile.save();
+
+      // Xác minh file đã được lưu
+      const verify = await FileModel.findOne({ id: fileId }, { id: 1, fileData: { $exists: true } });
+      if (!verify) {
+        console.error(`Upload: File đã lưu nhưng không thể verify, id=${fileId}`);
+      } else {
+        console.log(`Upload: File đã lưu thành công vào MongoDB, id=${fileId}`);
+      }
     } else {
       const db = readLocalDB();
       const newFile = {
         id: fileId,
         fileName,
-        fileSize: Buffer.from(base64.split(',')[1] || base64, 'base64').length,
+        fileSize: calculatedSize,
         uploadedBy: uploadedBy || 'Không xác định',
         description: description || '',
         createdAt: new Date().toISOString(),
@@ -1064,6 +1082,7 @@ app.post('/api/uploadFile', checkAuth, async (req, res) => {
       db.files = db.files || [];
       db.files.unshift(newFile);
       writeLocalDB(db);
+      console.log(`Upload: File đã lưu thành công vào db.json, id=${fileId}`);
     }
 
     res.json({ success: true, downloadUrl, fileId });
@@ -1087,25 +1106,41 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
       fileRecord = (db.files || []).find(f => f.id === fileId);
     }
 
-    if (!fileRecord || !fileRecord.fileData) {
-      return res.status(404).send('Không tìm thấy tệp tin hoặc tệp tin chưa được tải lên.');
+    if (!fileRecord) {
+      console.error(`Download: File record không tồn tại cho id=${fileId}`);
+      return res.status(404).json({ error: 'Không tìm thấy tệp tin.' });
+    }
+
+    if (!fileRecord.fileData) {
+      console.error(`Download: File record tồn tại nhưng không có fileData, id=${fileId}`);
+      return res.status(404).json({ error: 'Tệp tin chưa được tải lên hoặc dữ liệu đã bị mất.' });
     }
 
     if (!fileRecord.fileData.startsWith('data:')) {
-      return res.status(500).send('Dữ liệu tệp tin bị hỏng.');
+      console.error(`Download: fileData không bắt đầu bằng "data:", id=${fileId}`);
+      return res.status(500).json({ error: 'Dữ liệu tệp tin bị hỏng.' });
     }
 
     const parts = fileRecord.fileData.split(';base64,');
     if (parts.length !== 2) {
-      return res.status(500).send('Dữ liệu tệp tin bị hỏng.');
+      console.error(`Download: fileData không đúng format base64, id=${fileId}`);
+      return res.status(500).json({ error: 'Dữ liệu tệp tin bị hỏng.' });
     }
 
     const contentType = parts[0].substring(5);
     const base64Data = parts[1].trim();
     const fileBuffer = Buffer.from(base64Data, 'base64');
 
+    if (fileBuffer.length === 0) {
+      console.error(`Download: File buffer trống sau khi decode base64, id=${fileId}`);
+      return res.status(500).json({ error: 'Dữ liệu tệp tin bị trống.' });
+    }
+
+    console.log(`Download: Đang gửi file "${fileRecord.fileName}" (${fileBuffer.length} bytes), id=${fileId}`);
+
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', fileBuffer.length);
 
     const encodedFileName = encodeURIComponent(fileRecord.fileName).replace(/'/g, "%27");
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
@@ -1113,7 +1148,7 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
     res.send(fileBuffer);
   } catch (error) {
     console.error('Download error:', error);
-    res.status(500).send('Lỗi máy chủ nội bộ.');
+    res.status(500).json({ error: 'Lỗi máy chủ nội bộ.' });
   }
 });
 
