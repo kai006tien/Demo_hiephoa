@@ -65,6 +65,9 @@ const Accounts = {
               <button class="btn btn-ghost btn-sm text-danger" onclick="Accounts.toggleActive('${acc.id}')" data-tooltip="${acc.active ? 'Khóa TK' : 'Mở khóa'}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${acc.active ? '<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>' : '<path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>'}</svg>
               </button>
+              <button class="btn btn-ghost btn-sm text-danger" onclick="Accounts.deleteAccount('${acc.id}')" data-tooltip="Xóa tài khoản">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
             </div>
           </td>
         </tr>`;
@@ -215,6 +218,19 @@ const Accounts = {
       Storage.updateAccount(id, { active: newStatus });
       Utils.showToast('success', 'Thành công', `Đã ${action} tài khoản "${account.fullName}"`);
       Accounts.renderAccountsList();
+    }
+  },
+
+  // Delete account
+  deleteAccount(id) {
+    const account = Storage.getAccountById(id);
+    if (!account) return;
+
+    if (confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${account.fullName}"? Hành động này không thể hoàn tác.`)) {
+      Storage.deleteAccount(id);
+      Utils.showToast('success', 'Thành công', `Đã xóa tài khoản "${account.fullName}"`);
+      Accounts.renderAccountsList();
+      App.updateStats();
     }
   },
 
