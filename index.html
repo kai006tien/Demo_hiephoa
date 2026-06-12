@@ -36,7 +36,7 @@
           <span id="login-error-text"></span>
         </div>
 
-        <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
+        <form class="login-form" id="login-form">
           <div class="form-group">
             <label class="form-label" for="login-username">Tên đăng nhập</label>
             <div class="input-icon-wrapper">
@@ -50,7 +50,7 @@
             <div class="input-icon-wrapper">
               <input class="form-input" type="password" id="login-password" placeholder="Nhập mật khẩu" required autocomplete="current-password">
               <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <button type="button" class="password-toggle" onclick="togglePassword()" id="password-toggle">
+              <button type="button" class="password-toggle" id="password-toggle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
@@ -137,6 +137,19 @@
 
     // Focus on username input
     document.getElementById('login-username').focus();
+
+    // CSP compliant event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('login-form');
+      if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+      }
+      
+      const pwdToggle = document.getElementById('password-toggle');
+      if (pwdToggle) {
+        pwdToggle.addEventListener('click', togglePassword);
+      }
+    });
   </script>
 </body>
 </html>
