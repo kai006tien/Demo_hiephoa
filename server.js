@@ -109,9 +109,9 @@ app.use(mongoSanitize());
 // 6. Chống HTTP Parameter Pollution
 app.use(hpp());
 
-// 7. Body parser với giới hạn kích thước
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ limit: '20mb', extended: true }));
+// 7. Body parser với giới hạn kích thước (25MB để hỗ trợ base64 encode file 10MB)
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // 8. CHẶN truy cập file nhạy cảm trước khi serve static
 app.use((req, res, next) => {
@@ -1020,6 +1020,29 @@ app.post('/api/sync', checkAuth, async (req, res) => {
   }
 });
 
+// Helper: Detect MIME type từ file extension
+function detectMimeType(fileName) {
+  const ext = (fileName || '').split('.').pop().toLowerCase();
+  const mimeMap = {
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'pdf': 'application/pdf',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'txt': 'text/plain',
+    'csv': 'text/csv',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'zip': 'application/zip',
+    'rar': 'application/x-rar-compressed'
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
 // POST /api/uploadFile - Upload file (yêu cầu xác thực)
 app.post('/api/uploadFile', checkAuth, async (req, res) => {
   try {
@@ -1037,18 +1060,30 @@ app.post('/api/uploadFile', checkAuth, async (req, res) => {
 
     const fileId = id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
+    // Detect MIME type: ưu tiên từ data URL prefix > request body > file extension
+    let resolvedMimeType;
+    if (base64.startsWith('data:') && base64.includes(';base64,')) {
+      // Đã có data URL đầy đủ - trích xuất MIME type từ đó
+      resolvedMimeType = base64.substring(5, base64.indexOf(';base64,'));
+    } else if (mimeType && mimeType !== 'application/octet-stream' && mimeType !== '') {
+      resolvedMimeType = mimeType;
+    } else {
+      // Detect từ file extension
+      resolvedMimeType = detectMimeType(fileName);
+    }
+
     // Tạo data URL đầy đủ
     let fullDataUrl;
     if (base64.startsWith('data:')) {
       fullDataUrl = base64;
     } else {
-      fullDataUrl = `data:${mimeType || 'application/octet-stream'};base64,${base64}`;
+      fullDataUrl = `data:${resolvedMimeType};base64,${rawBase64}`;
     }
 
     const calculatedSize = Buffer.from(rawBase64, 'base64').length;
     const downloadUrl = `/api/download/${fileId}`;
 
-    console.log(`Upload: file="${fileName}", size=${calculatedSize} bytes, id=${fileId}`);
+    console.log(`Upload: file="${fileName}", mime=${resolvedMimeType}, size=${calculatedSize} bytes, id=${fileId}`);
 
     // Kiểm tra giới hạn kích thước (MongoDB giới hạn 16MB/document)
     if (fullDataUrl.length > 15 * 1024 * 1024) {

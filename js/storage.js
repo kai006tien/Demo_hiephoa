@@ -183,6 +183,7 @@ const Storage = {
     const files = Storage.getFiles();
     files.unshift(file);
     Storage.set(Storage.KEYS.FILES, files);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Files', file);
     return file;
   },
 

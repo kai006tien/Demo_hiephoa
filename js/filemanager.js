@@ -169,29 +169,49 @@ const FileManager = {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
-      const base64Payload = dataUrl.split(',')[1];
+
+      // Đảm bảo data URL có MIME type chính xác
+      let finalDataUrl = dataUrl;
+      if (!dataUrl.startsWith('data:') || dataUrl.startsWith('data:application/octet-stream')) {
+        // Detect MIME type từ file extension
+        const mimeMap = {
+          'doc': 'application/msword',
+          'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'xls': 'application/vnd.ms-excel',
+          'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'pdf': 'application/pdf'
+        };
+        const fileExt = Utils.getFileExtension(file.name);
+        const correctMime = mimeMap[fileExt] || 'application/octet-stream';
+        const base64Part = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        finalDataUrl = `data:${correctMime};base64,${base64Part}`;
+      }
       
       let downloadUrl = null;
       
-      // Nếu có kích hoạt đồng bộ, tải file lên server/db
-      if (typeof Sync !== 'undefined' && Sync.isEnabled() && Sync.getUrl()) {
+      // Luôn tải file lên server nếu đã đăng nhập
+      const authToken = Auth.getAuthToken();
+      if (authToken) {
         Utils.showToast('info', 'Đang tải lên', 'Đang tải file lên cơ sở dữ liệu...');
         try {
           const response = await fetch('/api/uploadFile', {
             method: 'POST',
-            headers: Sync.getAuthHeaders(),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({
               id: fileId,
               fileName: file.name,
-              mimeType: file.type,
-              base64: base64Payload,
+              mimeType: file.type || '',
+              base64: finalDataUrl,
               uploadedBy: Auth.getSession().userId,
-              description: description.trim()
+              description: (description || '').trim()
             })
           });
           
           if (response.status === 401) {
-            Sync.handleUnauthorized();
+            if (typeof Sync !== 'undefined') Sync.handleUnauthorized();
             return;
           }
 
@@ -221,10 +241,12 @@ const FileManager = {
         fileName: file.name,
         fileSize: file.size,
         uploadedBy: Auth.getSession().userId,
-        description: description.trim(),
+        description: (description || '').trim(),
         createdAt: Utils.getCurrentDate(),
         downloadUrl: downloadUrl,
-        fileData: downloadUrl ? null : (file.size < 1.5 * 1024 * 1024 ? dataUrl : null) // Chỉ lưu base64 cục bộ khi không dùng đồng bộ và file dưới 1.5MB
+        // Khi đã upload lên server, không lưu fileData vào localStorage (tránh vượt quota)
+        // Khi chưa có server, lưu base64 cho file nhỏ
+        fileData: downloadUrl ? null : (file.size < 1.5 * 1024 * 1024 ? finalDataUrl : null)
       };
 
       Storage.addFile(newFile);

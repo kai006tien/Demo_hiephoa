@@ -217,7 +217,22 @@ const Documents = {
           reader.readAsDataURL(file);
         });
 
-        const base64Payload = fileDataUrl.split(',')[1];
+        // Đảm bảo data URL có MIME type chính xác
+        let finalDataUrl = fileDataUrl;
+        if (!fileDataUrl.startsWith('data:') || fileDataUrl.startsWith('data:application/octet-stream')) {
+          const mimeMap = {
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'pdf': 'application/pdf'
+          };
+          const fileExt = Utils.getFileExtension(file.name);
+          const correctMime = mimeMap[fileExt] || 'application/octet-stream';
+          const base64Part = fileDataUrl.includes(',') ? fileDataUrl.split(',')[1] : fileDataUrl;
+          finalDataUrl = `data:${correctMime};base64,${base64Part}`;
+        }
+
         const token = Auth.getAuthToken();
         const response = await fetch('/api/uploadFile', {
           method: 'POST',
@@ -227,8 +242,8 @@ const Documents = {
           },
           body: JSON.stringify({
             fileName: file.name,
-            mimeType: file.type,
-            base64: base64Payload,
+            mimeType: file.type || '',
+            base64: finalDataUrl,
             uploadedBy: Auth.getSession().userId,
             description: `File đính kèm văn bản: ${title}`
           })
