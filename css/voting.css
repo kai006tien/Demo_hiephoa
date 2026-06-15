@@ -27,7 +27,64 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--transition-fast, 0.2s);
 }
+
+.vote-card__header:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.vote-card__toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full, 50%);
+  transition: background-color var(--transition-fast, 0.2s), color var(--transition-fast, 0.2s);
+  margin-top: -2px; /* Align nicely with title line */
+}
+
+.vote-card__header:hover .vote-card__toggle-icon {
+  background-color: var(--color-border-light);
+  color: var(--color-primary);
+}
+
+.chevron-icon {
+  transform: rotate(180deg);
+  transition: transform var(--transition-base, 0.3s) ease;
+}
+
+.vote-card--collapsed .chevron-icon {
+  transform: rotate(0deg);
+}
+
+/* Collapsible body container using modern CSS grid */
+.vote-card__body-wrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-base, 0.3s) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vote-card--collapsed .vote-card__body-wrapper {
+  grid-template-rows: 0fr;
+}
+
+.vote-card__body {
+  overflow: hidden;
+  min-height: 0;
+  transition: opacity var(--transition-base, 0.3s) ease;
+  opacity: 1;
+}
+
+.vote-card--collapsed .vote-card__body {
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 .vote-card__title {
   font-size: var(--font-size-lg);

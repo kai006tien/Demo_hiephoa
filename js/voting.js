@@ -16,6 +16,19 @@ const Voting = {
     container.appendChild(row);
   },
 
+  // Toggle card expansion/collapse
+  toggleCard(header, event) {
+    // Tránh toggle khi bấm vào nút, badge, link, hoặc input trong header
+    if (event.target.closest('button') || event.target.closest('input') || event.target.closest('a') || event.target.closest('.badge')) {
+      return;
+    }
+    const card = header.closest('.vote-card');
+    if (card) {
+      card.classList.toggle('vote-card--collapsed');
+    }
+  },
+
+
   // Render vote list for admin
   renderVoteListAdmin() {
     const votes = Storage.getVotes();
@@ -172,9 +185,9 @@ const Voting = {
     }
 
     return `
-      <div class="vote-card ${isActive ? 'vote-card--active' : 'vote-card--closed'}">
-        <div class="vote-card__header">
-          <div>
+      <div class="vote-card ${isActive ? 'vote-card--active' : 'vote-card--closed vote-card--collapsed'}">
+        <div class="vote-card__header" onclick="Voting.toggleCard(this, event)">
+          <div style="flex-grow: 1;">
             <div class="vote-card__title">${Utils.escapeHtml(vote.title)}</div>
             <p class="vote-card__desc">${Utils.escapeHtml(vote.description || '')}</p>
             <div class="mt-2" style="font-size:12px;color:var(--color-text-muted);">
@@ -182,7 +195,7 @@ const Voting = {
               ${vote.closedAt ? ` | Đóng lúc: ${Utils.formatDateTime(vote.closedAt)}` : ''}
             </div>
           </div>
-          <div class="d-flex items-center gap-2">
+          <div class="d-flex items-center gap-2" onclick="event.stopPropagation()">
             ${isActive ? `
               <span class="vote-status--active">Đang mở</span>
               <button class="btn btn-danger btn-sm" onclick="Voting.closeVote('${vote.id}')">Đóng</button>
@@ -190,21 +203,30 @@ const Voting = {
               <span class="vote-status--closed">Đã đóng</span>
             `}
           </div>
-        </div>
-
-        <div class="vote-card__results" style="background:var(--color-surface-hover); display:flex; flex-direction:column; gap:12px;">
-          ${itemsHtml}
-          <div class="vote-total-count" style="margin-top:4px; font-weight:600; text-align:left;">Tổng số đại biểu đã tham gia: ${totalVotersSession}</div>
-        </div>
-
-        <!-- Voter list (Admin only) -->
-        <div class="vote-card__comments" style="background:var(--color-surface)">
-          <div class="comments-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            Danh sách người biểu quyết
+          <div class="vote-card__toggle-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="chevron-icon">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
           </div>
-          <div class="voter-list">
-            ${voterListHtml}
+        </div>
+
+        <div class="vote-card__body-wrapper">
+          <div class="vote-card__body">
+            <div class="vote-card__results" style="background:var(--color-surface-hover); display:flex; flex-direction:column; gap:12px;">
+              ${itemsHtml}
+              <div class="vote-total-count" style="margin-top:4px; font-weight:600; text-align:left;">Tổng số đại biểu đã tham gia: ${totalVotersSession}</div>
+            </div>
+
+            <!-- Voter list (Admin only) -->
+            <div class="vote-card__comments" style="background:var(--color-surface)">
+              <div class="comments-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Danh sách người biểu quyết
+              </div>
+              <div class="voter-list">
+                ${voterListHtml}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -426,21 +448,37 @@ const Voting = {
       `;
     }
 
+    const hasVotedAll = vote.items && vote.items.length > 0 
+      ? vote.items.every(item => myVoteRecord && myVoteRecord.votes && myVoteRecord.votes[item.id])
+      : (myVoteRecord ? !!myVoteRecord.vote : false);
+    const shouldCollapse = !isActive || hasVotedAll;
+
     return `
-      <div class="vote-card ${isActive ? 'vote-card--active' : 'vote-card--closed'}">
-        <div class="vote-card__header">
-          <div>
+      <div class="vote-card ${isActive ? 'vote-card--active' : 'vote-card--closed'} ${shouldCollapse ? 'vote-card--collapsed' : ''}">
+        <div class="vote-card__header" onclick="Voting.toggleCard(this, event)">
+          <div style="flex-grow: 1;">
             <div class="vote-card__title">${Utils.escapeHtml(vote.title)}</div>
             <p class="vote-card__desc">${Utils.escapeHtml(vote.description || '')}</p>
           </div>
-          ${isActive ? '<span class="vote-status--active">Đang mở</span>' : '<span class="vote-status--closed">Đã đóng</span>'}
+          <div class="d-flex items-center gap-2" onclick="event.stopPropagation()">
+            ${isActive ? '<span class="vote-status--active">Đang mở</span>' : '<span class="vote-status--closed">Đã đóng</span>'}
+          </div>
+          <div class="vote-card__toggle-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="chevron-icon">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
         </div>
 
-        <div class="vote-card__results">
-          ${itemsHtml}
-        </div>
+        <div class="vote-card__body-wrapper">
+          <div class="vote-card__body">
+            <div class="vote-card__results">
+              ${itemsHtml}
+            </div>
 
-        ${commentsSectionHtml}
+            ${commentsSectionHtml}
+          </div>
+        </div>
       </div>
     `;
   },
