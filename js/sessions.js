@@ -138,7 +138,7 @@ const Sessions = {
               <div class="file-card__size">${Sessions.formatFileSize(doc.fileSize)} · ${Utils.timeAgo(doc.uploadedAt)}</div>
             </div>
             <div class="file-card__actions">
-              ${ext === 'pdf' ? `<button class="file-card__btn" onclick="Sessions.previewFile('${session.id}','document','${doc.id}')">👁 Xem</button>` : ''}
+              ${['pdf', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext) ? `<button class="file-card__btn" onclick="Sessions.previewFile('${session.id}','document','${doc.id}')">👁 Xem</button>` : ''}
               <button class="file-card__btn" onclick="Sessions.downloadFile('${session.id}','document','${doc.id}')">⬇ Tải</button>
               ${isAdmin ? `<button class="file-card__btn file-card__btn--danger" onclick="Sessions.removeFile('${session.id}','document','${doc.id}')">✕</button>` : ''}
             </div>
@@ -230,12 +230,16 @@ const Sessions = {
       // User voting buttons
       if (!isAdmin && !myVote) {
         voteActionsHtml = `
+          <div class="resolution-vote__opinion-input-group">
+            <label>Ý kiến đóng góp (nếu có):</label>
+            <input type="text" id="opinion-input-${res.id}" placeholder="Nhập ý kiến đóng góp của bạn...">
+          </div>
           <div class="resolution-vote__actions">
-            <button class="resolution-vote__btn resolution-vote__btn--agree" onclick="Sessions.castVote('${session.id}','${res.id}','agree')">
+            <button class="resolution-vote__btn resolution-vote__btn--agree" onclick="Sessions.submitVote('${session.id}','${res.id}','agree')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
               TÁN THÀNH
             </button>
-            <button class="resolution-vote__btn resolution-vote__btn--disagree" onclick="Sessions.castVote('${session.id}','${res.id}','disagree')">
+            <button class="resolution-vote__btn resolution-vote__btn--disagree" onclick="Sessions.submitVote('${session.id}','${res.id}','disagree')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
               KHÔNG TÁN THÀNH
             </button>
@@ -244,6 +248,7 @@ const Sessions = {
         voteActionsHtml = `
           <div class="resolution-vote__voted resolution-vote__voted--${myVote.voteType}">
             ${myVote.voteType === 'agree' ? '✓ Bạn đã tán thành' : '✗ Bạn đã không tán thành'}
+            ${myVote.opinion ? `<div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; font-style: italic;">Ý kiến của bạn: "${Utils.escapeHtml(myVote.opinion)}"</div>` : ''}
           </div>`;
       }
     } else {
@@ -255,17 +260,25 @@ const Sessions = {
       votersListHtml = `
         <div class="resolution-voters">
           <div class="resolution-voters__title">Danh sách đã biểu quyết (${totalVoters})</div>
-          ${voters.map(v => {
-            const user = Storage.getAccountById(v.userId);
-            return `
-              <div class="resolution-voter">
-                <div class="resolution-voter__avatar">${Utils.getInitials(user ? user.fullName : '?')}</div>
-                <span class="resolution-voter__name">${Utils.escapeHtml(user ? user.fullName : 'Không xác định')}</span>
-                <span class="resolution-voter__vote--${v.voteType}">${v.voteType === 'agree' ? '✓ Tán thành' : '✗ Không tán thành'}</span>
-              </div>`;
-          }).join('')}
+          <div class="resolution-voters__list" style="display: flex; flex-direction: column; gap: 8px;">
+            ${voters.map(v => {
+              const user = Storage.getAccountById(v.userId);
+              const opinionText = v.opinion ? `<div class="resolution-voter__opinion">"Ý kiến: ${Utils.escapeHtml(v.opinion)}"</div>` : '';
+              return `
+                <div class="resolution-voter-wrapper">
+                  <div class="resolution-voter">
+                    <div class="resolution-voter__avatar">${Utils.getInitials(user ? user.fullName : '?')}</div>
+                    <span class="resolution-voter__name">${Utils.escapeHtml(user ? user.fullName : 'Không xác định')}</span>
+                    <span class="resolution-voter__vote--${v.voteType}">${v.voteType === 'agree' ? '✓ Tán thành' : '✗ Không tán thành'}</span>
+                  </div>
+                  ${opinionText}
+                </div>`;
+            }).join('')}
+          </div>
         </div>`;
     }
+
+    const previewable = ['pdf', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
 
     return `
       <div class="resolution-card">
@@ -276,7 +289,7 @@ const Sessions = {
             <div class="resolution-card__meta">${Sessions.formatFileSize(res.fileSize)} · ${Utils.timeAgo(res.uploadedAt)}</div>
           </div>
           <div class="resolution-card__actions-top">
-            ${ext === 'pdf' ? `<button class="file-card__btn" onclick="Sessions.previewFile('${session.id}','resolution','${res.id}')">👁 Xem trước</button>` : ''}
+            ${previewable ? `<button class="file-card__btn" onclick="Sessions.previewFile('${session.id}','resolution','${res.id}')">👁 Xem trước</button>` : ''}
             <button class="file-card__btn" onclick="Sessions.downloadFile('${session.id}','resolution','${res.id}')">⬇ Tải</button>
             ${isAdmin ? `<button class="file-card__btn file-card__btn--danger" onclick="Sessions.removeFile('${session.id}','resolution','${res.id}')">✕</button>` : ''}
           </div>
@@ -507,6 +520,7 @@ const Sessions = {
     }
 
     const ext = Sessions.getFileExtension(file.fileName);
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
 
     if (ext === 'pdf') {
       // Open PDF in preview modal
@@ -517,13 +531,67 @@ const Sessions = {
       if (title) title.textContent = file.fileName;
       if (body) {
         body.innerHTML = `
-          <div class="preview-modal__content">
-            <iframe src="${file.fileData}" type="application/pdf"></iframe>
+          <div class="preview-modal__content" style="height:70vh;">
+            <iframe src="${file.fileData}" type="application/pdf" style="width:100%; height:100%; border:none;"></iframe>
           </div>`;
       }
       Utils.openModal('modal-file-preview');
+    } else if (isImage) {
+      // Open Image in preview modal
+      const modal = document.getElementById('modal-file-preview');
+      const body = document.getElementById('modal-file-preview-body');
+      const title = document.getElementById('modal-file-preview-title');
+
+      if (title) title.textContent = file.fileName;
+      if (body) {
+        body.innerHTML = `
+          <div style="display:flex; justify-content:center; align-items:center; background:#f0f2f5; padding:20px; border-radius:8px; overflow:auto; max-height:75vh;">
+            <img src="${file.fileData}" style="max-width:100%; max-height:70vh; object-fit:contain; border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" alt="${Utils.escapeHtml(file.fileName)}">
+          </div>`;
+      }
+      Utils.openModal('modal-file-preview');
+    } else if (ext === 'docx') {
+      // Open Docx using docx-preview
+      const modal = document.getElementById('modal-file-preview');
+      const body = document.getElementById('modal-file-preview-body');
+      const title = document.getElementById('modal-file-preview-title');
+
+      if (title) title.textContent = file.fileName;
+      if (body) {
+        body.innerHTML = `
+          <div id="docx-preview-container" class="preview-modal__docx" style="padding: 20px; background: white; overflow: auto; max-height: 70vh; border: 1px solid var(--color-border); border-radius: 4px;">
+            <div style="text-align:center; padding: 40px 0;">
+              <p style="color: var(--color-text-secondary);">Đang tải tài liệu...</p>
+            </div>
+          </div>`;
+      }
+      Utils.openModal('modal-file-preview');
+
+      setTimeout(() => {
+        try {
+          const base64Data = file.fileData.split(',')[1];
+          const arrayBuffer = Sessions.base64ToArrayBuffer(base64Data);
+          const container = document.getElementById('docx-preview-container');
+          container.innerHTML = ''; // clear loading state
+          
+          if (typeof docx !== 'undefined') {
+            docx.renderAsync(arrayBuffer, container)
+              .then(() => console.log("docx rendered successfully"))
+              .catch(err => {
+                console.error(err);
+                container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi hiển thị file Word: ${err.message}</div>`;
+              });
+          } else {
+            container.innerHTML = `<div class="alert alert-warning" style="margin:20px;">Thư viện hiển thị Word chưa được tải hoàn toàn. Vui lòng thử lại.</div>`;
+          }
+        } catch (err) {
+          console.error(err);
+          const container = document.getElementById('docx-preview-container');
+          if (container) container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi giải mã dữ liệu: ${err.message}</div>`;
+        }
+      }, 100);
     } else {
-      // Word/Other - show info only
+      // Word/Other fallback - show info only
       const modal = document.getElementById('modal-file-preview');
       const body = document.getElementById('modal-file-preview-body');
       const title = document.getElementById('modal-file-preview-title');
@@ -536,7 +604,7 @@ const Sessions = {
             <div style="text-align:center">
               <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${Utils.escapeHtml(file.fileName)}</div>
               <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">${Sessions.formatFileSize(file.fileSize)}</div>
-              <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Trình duyệt không hỗ trợ xem trước file Word trực tiếp.</div>
+              <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Trình duyệt không hỗ trợ xem trước định dạng này.</div>
               <button class="btn btn-primary" onclick="Sessions.downloadFile('${sessionId}','${fileType}','${fileId}')">
                 ⬇ Tải file về máy
               </button>
@@ -545,6 +613,16 @@ const Sessions = {
       }
       Utils.openModal('modal-file-preview');
     }
+  },
+
+  base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
   },
 
   // ========================================
@@ -657,7 +735,13 @@ const Sessions = {
     Sessions.renderSessionList(Sessions.currentType, containerId);
   },
 
-  castVote(sessionId, resolutionId, voteType) {
+  submitVote(sessionId, resolutionId, voteType) {
+    const input = document.getElementById(`opinion-input-${resolutionId}`);
+    const opinion = input ? input.value.trim() : '';
+    Sessions.castVote(sessionId, resolutionId, voteType, opinion);
+  },
+
+  castVote(sessionId, resolutionId, voteType, opinion = '') {
     const currentSession = Auth.getSession();
     const session = Storage.getSessions().find(s => s.id === sessionId);
     if (!session) return;
@@ -677,6 +761,7 @@ const Sessions = {
     resolution.vote.voters.push({
       userId: currentSession.userId,
       voteType: voteType,
+      opinion: opinion,
       votedAt: Utils.getCurrentDate()
     });
 

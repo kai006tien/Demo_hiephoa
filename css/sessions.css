@@ -774,3 +774,53 @@
   opacity: 0.9;
   transform: translateY(-1px);
 }
+
+/* === ADDITIONAL VOTING OPINION STYLES === */
+.resolution-vote__opinion-input-group {
+  margin-bottom: var(--space-3);
+  width: 100%;
+}
+
+.resolution-vote__opinion-input-group label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.resolution-vote__opinion-input-group input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.resolution-vote__opinion-input-group input:focus {
+  border-color: var(--color-primary-light);
+}
+
+.resolution-voter__opinion {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+  padding-left: 32px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.resolution-voter-wrapper {
+  border-bottom: 1px solid var(--color-border-light);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.resolution-voter-wrapper:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
