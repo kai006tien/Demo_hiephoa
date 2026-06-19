@@ -162,6 +162,16 @@ const Utils = {
     if (modal) {
       modal.classList.remove('active');
       document.body.style.overflow = '';
+      if (modalId === 'modal-file-preview') {
+        const body = document.getElementById('modal-file-preview-body');
+        if (body) {
+          body.innerHTML = '';
+        }
+        if (window.currentPreviewBlobUrl) {
+          URL.revokeObjectURL(window.currentPreviewBlobUrl);
+          window.currentPreviewBlobUrl = null;
+        }
+      }
     }
   },
 

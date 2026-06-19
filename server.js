@@ -53,7 +53,8 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
       connectSrc: ["'self'"],
-      frameSrc: ["'self'", "data:"]
+      frameSrc: ["'self'", "data:", "blob:"],
+      objectSrc: ["'self'", "data:", "blob:"]
     }
   },
   crossOriginEmbedderPolicy: false

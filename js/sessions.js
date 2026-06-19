@@ -541,9 +541,23 @@ const Sessions = {
 
       if (title) title.textContent = file.fileName;
       if (body) {
+        let srcUrl = file.fileData;
+        try {
+          const blob = Sessions.base64ToBlob(file.fileData);
+          if (blob) {
+            if (window.currentPreviewBlobUrl) {
+              URL.revokeObjectURL(window.currentPreviewBlobUrl);
+            }
+            window.currentPreviewBlobUrl = URL.createObjectURL(blob);
+            srcUrl = window.currentPreviewBlobUrl;
+          }
+        } catch (e) {
+          console.error("Failed to generate blob url for preview", e);
+        }
+
         body.innerHTML = `
           <div class="preview-modal__content" style="height:70vh;">
-            <iframe src="${file.fileData}" type="application/pdf" style="width:100%; height:100%; border:none;"></iframe>
+            <iframe src="${srcUrl}" type="application/pdf" style="width:100%; height:100%; border:none;"></iframe>
           </div>`;
       }
       Utils.openModal('modal-file-preview');
@@ -634,6 +648,23 @@ const Sessions = {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes.buffer;
+  },
+
+  base64ToBlob(dataURI) {
+    try {
+      const parts = dataURI.split(',');
+      const byteString = atob(parts[1]);
+      const mimeString = parts[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], {type: mimeString});
+    } catch (e) {
+      console.error('Error parsing base64 to blob', e);
+      return null;
+    }
   },
 
   // ========================================
