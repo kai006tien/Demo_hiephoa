@@ -170,6 +170,7 @@ const Sync = {
       const currentNotifs = localStorage.getItem('hha_notifications');
       const currentFiles = localStorage.getItem('hha_files');
       const currentSuggestions = localStorage.getItem('hha_suggestions');
+      const currentSessions = localStorage.getItem('hha_sessions');
 
       const newAccounts = JSON.stringify(cloudData.Accounts || []);
       const newDocs = JSON.stringify(cloudData.Documents || []);
@@ -177,6 +178,7 @@ const Sync = {
       const newNotifs = JSON.stringify(cloudData.Notifications || []);
       const newFiles = JSON.stringify(cloudData.Files || []);
       const newSuggestions = JSON.stringify(cloudData.Suggestions || []);
+      const newSessions = JSON.stringify(cloudData.Sessions || []);
 
       const hasChanged =
         currentAccounts !== newAccounts ||
@@ -184,7 +186,8 @@ const Sync = {
         currentVotes !== newVotes ||
         currentNotifs !== newNotifs ||
         currentFiles !== newFiles ||
-        currentSuggestions !== newSuggestions;
+        currentSuggestions !== newSuggestions ||
+        currentSessions !== newSessions;
 
       if (hasChanged) {
         console.log('☁️ Phát hiện dữ liệu mới. Đang đồng bộ...');
@@ -222,6 +225,9 @@ const Sync = {
     }
     if (cloudData.Suggestions) {
       localStorage.setItem('hha_suggestions', JSON.stringify(cloudData.Suggestions));
+    }
+    if (cloudData.Sessions) {
+      localStorage.setItem('hha_sessions', JSON.stringify(cloudData.Sessions));
     }
   },
 
@@ -363,7 +369,8 @@ const Sync = {
         votes: Storage.getVotes(),
         notifications: Storage.getNotifications(),
         files: Storage.getFiles(),
-        suggestions: Storage.getSuggestions()
+        suggestions: Storage.getSuggestions(),
+        sessions: Storage.getSessions()
       }
     };
 

@@ -85,10 +85,39 @@ const App = {
 
   // Setup sidebar navigation
   setupSidebar(role) {
-    const items = document.querySelectorAll('.sidebar__item[data-section]');
+    // Regular sidebar items (non-expandable)
+    const items = document.querySelectorAll('.sidebar__item[data-section]:not(.sidebar__item--expandable)');
     items.forEach(item => {
       item.addEventListener('click', () => {
         const section = item.dataset.section;
+        App.navigateTo(section);
+
+        // Close sidebar on mobile
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (window.innerWidth <= 768) {
+          sidebar.classList.remove('open');
+          overlay.classList.remove('active');
+        }
+      });
+    });
+
+    // Expandable sidebar items
+    const expandableItems = document.querySelectorAll('.sidebar__item--expandable');
+    expandableItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        // Don't toggle if clicking a submenu item
+        if (e.target.closest('.sidebar__submenu-item')) return;
+        item.classList.toggle('open');
+      });
+    });
+
+    // Submenu items
+    const submenuItems = document.querySelectorAll('.sidebar__submenu-item[data-section]');
+    submenuItems.forEach(subItem => {
+      subItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const section = subItem.dataset.section;
         App.navigateTo(section);
 
         // Close sidebar on mobile
@@ -106,9 +135,21 @@ const App = {
   navigateTo(section) {
     App.currentSection = section;
 
-    // Update sidebar active
-    document.querySelectorAll('.sidebar__item').forEach(item => {
+    // Update sidebar active - regular items
+    document.querySelectorAll('.sidebar__item:not(.sidebar__item--expandable)').forEach(item => {
       item.classList.toggle('active', item.dataset.section === section);
+    });
+
+    // Update sidebar active - submenu items
+    document.querySelectorAll('.sidebar__submenu-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.section === section);
+    });
+
+    // Auto-expand parent if a submenu item is active
+    document.querySelectorAll('.sidebar__item--expandable').forEach(item => {
+      const hasActiveChild = item.querySelector('.sidebar__submenu-item.active');
+      item.classList.toggle('active', !!hasActiveChild);
+      if (hasActiveChild) item.classList.add('open');
     });
 
     // Show/hide sections
@@ -135,6 +176,12 @@ const App = {
         } else {
           Voting.renderVoteListUser();
         }
+        break;
+      case 'kyhople':
+        Sessions.renderSessionList('regular', 'sessions-regular-list');
+        break;
+      case 'kyhopchuyende':
+        Sessions.renderSessionList('special', 'sessions-special-list');
         break;
       case 'notifications':
         Notifications.renderNotificationList(role);

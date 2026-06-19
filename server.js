@@ -214,12 +214,25 @@ const SuggestionSchema = new mongoose.Schema({
   createdAt: String
 }, { strict: false, id: false, collection: 'suggestions' });
 
+const SessionSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  type: String,
+  name: String,
+  order: Number,
+  documents: [mongoose.Schema.Types.Mixed],
+  resolutions: [mongoose.Schema.Types.Mixed],
+  createdBy: String,
+  createdAt: String,
+  updatedAt: String
+}, { strict: false, id: false, collection: 'sessions' });
+
 const AccountModel = mongoose.model('Account', AccountSchema);
 const DocumentModel = mongoose.model('Document', DocumentSchema);
 const VoteModel = mongoose.model('Vote', VoteSchema);
 const NotificationModel = mongoose.model('Notification', NotificationSchema);
 const FileModel = mongoose.model('File', FileSchema);
 const SuggestionModel = mongoose.model('Suggestion', SuggestionSchema);
+const SessionModel = mongoose.model('Session', SessionSchema);
 
 // ============================================
 // PASSWORD MIGRATION: Base64 → bcrypt (with repair logic)
@@ -402,13 +415,13 @@ const DB_FILE = path.join(__dirname, 'db.json');
 
 function readLocalDB() {
   if (!fs.existsSync(DB_FILE)) {
-    return { accounts: [], documents: [], votes: [], notifications: [], files: [] };
+    return { accounts: [], documents: [], votes: [], notifications: [], files: [], sessions: [] };
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(raw);
   } catch (e) {
-    return { accounts: [], documents: [], votes: [], notifications: [], files: [] };
+    return { accounts: [], documents: [], votes: [], notifications: [], files: [], sessions: [] };
   }
 }
 
@@ -701,6 +714,7 @@ app.get('/api/sync', checkAuth, async (req, res) => {
         else if (sheet === 'Notifications') data = await NotificationModel.find({});
         else if (sheet === 'Suggestions') data = await SuggestionModel.find({});
         else if (sheet === 'Files') data = await FileModel.find({}, { fileData: 0 });
+        else if (sheet === 'Sessions') data = await SessionModel.find({});
 
         return res.json({ data });
       }
@@ -717,6 +731,7 @@ app.get('/api/sync', checkAuth, async (req, res) => {
       const notifications = await NotificationModel.find({});
       const files = await FileModel.find({}, { fileData: 0 });
       const suggestions = await SuggestionModel.find({});
+      const sessions = await SessionModel.find({});
 
       return res.json({
         data: {
@@ -725,7 +740,8 @@ app.get('/api/sync', checkAuth, async (req, res) => {
           Votes: votes,
           Notifications: notifications,
           Files: files,
-          Suggestions: suggestions
+          Suggestions: suggestions,
+          Sessions: sessions
         }
       });
     } else {
@@ -753,7 +769,8 @@ app.get('/api/sync', checkAuth, async (req, res) => {
           Votes: db.votes || [],
           Notifications: db.notifications || [],
           Files: filesMetadataOnly,
-          Suggestions: db.suggestions || []
+          Suggestions: db.suggestions || [],
+          Sessions: db.sessions || []
         }
       });
     }
@@ -777,6 +794,7 @@ app.post('/api/sync', checkAuth, async (req, res) => {
         else if (sheet === 'Notifications') Model = NotificationModel;
         else if (sheet === 'Files') Model = FileModel;
         else if (sheet === 'Suggestions') Model = SuggestionModel;
+        else if (sheet === 'Sessions') Model = SessionModel;
 
         if (!Model) {
           return res.status(400).json({ error: 'Mô hình dữ liệu không hợp lệ.' });
@@ -910,6 +928,10 @@ app.post('/api/sync', checkAuth, async (req, res) => {
             );
           }
         }
+        if (data.sessions) {
+          await SessionModel.deleteMany({});
+          if (data.sessions.length > 0) await SessionModel.insertMany(data.sessions);
+        }
         return res.json({ success: true, message: 'Synced all collections' });
       }
     } else {
@@ -1008,6 +1030,7 @@ app.post('/api/sync', checkAuth, async (req, res) => {
             }
           }
         }
+        if (data.sessions) db.sessions = data.sessions;
         writeLocalDB(db);
         return res.json({ success: true, message: 'Synced all local data' });
       }

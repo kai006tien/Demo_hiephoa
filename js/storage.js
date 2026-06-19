@@ -11,6 +11,7 @@ const Storage = {
     NOTIFICATIONS: 'hha_notifications',
     FILES: 'hha_files',
     SUGGESTIONS: 'hha_suggestions',
+    SESSIONS: 'hha_sessions',
     SESSION: 'hha_session'
   },
 
@@ -209,6 +210,43 @@ const Storage = {
     Storage.saveSuggestions(suggestions);
     if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Suggestions', suggestion);
     return suggestion;
+  },
+
+  // === SESSIONS (Kỳ họp) ===
+  getSessions() {
+    const list = Storage.get(Storage.KEYS.SESSIONS) || [];
+    return list.sort((a, b) => (a.order || 0) - (b.order || 0));
+  },
+
+  saveSessions(sessions) {
+    Storage.set(Storage.KEYS.SESSIONS, sessions);
+  },
+
+  addSession(session) {
+    const sessions = Storage.getSessions();
+    sessions.push(session);
+    Storage.saveSessions(sessions);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Sessions', session);
+    return session;
+  },
+
+  updateSession(id, updates) {
+    const sessions = Storage.get(Storage.KEYS.SESSIONS) || [];
+    const index = sessions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      const updatedItem = { ...sessions[index], ...updates, updatedAt: new Date().toISOString() };
+      sessions[index] = updatedItem;
+      Storage.saveSessions(sessions);
+      if (typeof Sync !== 'undefined') Sync.syncMutation('upsert', 'Sessions', updatedItem);
+      return updatedItem;
+    }
+    return null;
+  },
+
+  deleteSession(id) {
+    const sessions = Storage.getSessions().filter(s => s.id !== id);
+    Storage.saveSessions(sessions);
+    if (typeof Sync !== 'undefined') Sync.syncMutation('delete', 'Sessions', { id });
   },
 
   // === SESSION ===
