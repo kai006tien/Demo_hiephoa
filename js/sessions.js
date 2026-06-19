@@ -40,7 +40,14 @@ const Sessions = {
       html += `
         <div class="session-folder" id="session-${session.id}">
           <div class="session-folder__header" onclick="Sessions.toggleFolder('${session.id}')">
-            <div class="session-folder__icon">📁</div>
+            <div class="session-folder__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color: white; display: block;">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
             <div class="session-folder__info">
               <div class="session-folder__name">${Utils.escapeHtml(session.name)}</div>
               <div class="session-folder__meta">${docCount} văn kiện · ${resCount} dự thảo NQ · ${Utils.formatDateTime(session.createdAt)}</div>
@@ -455,6 +462,9 @@ const Sessions = {
         return;
       }
 
+      // Thông báo đang tải tài liệu lên
+      Utils.showToast('info', 'Thông báo', `Đang tải tài liệu "${file.name}" lên hệ thống...`);
+
       const reader = new FileReader();
       reader.onload = (e) => {
         const fileData = e.target.result;
@@ -489,7 +499,8 @@ const Sessions = {
           resolutions: session.resolutions
         });
 
-        Utils.showToast('success', 'Thành công', `Đã tải lên "${file.name}"`);
+        // Thông báo tải thành công
+        Utils.showToast('success', 'Thành công', `Đã tải lên và lưu trữ thành công "${file.name}"`);
 
         // Re-render
         const containerId = Sessions.currentType === 'regular' ? 'sessions-regular-list' : 'sessions-special-list';
