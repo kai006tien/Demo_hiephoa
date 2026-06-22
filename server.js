@@ -89,7 +89,7 @@ app.use(cors({
 // 3. Rate Limiting tổng quát - 200 requests / 15 phút / IP
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 600,
   message: { error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' },
   standardHeaders: true,
   legacyHeaders: false

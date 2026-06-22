@@ -10,12 +10,14 @@ const Sync = {
 
   isSyncing: false,
   pollingIntervalId: null,
+  consecutiveErrors: 0,
+  DEFAULT_POLL_MS: 10000,
 
   // Initialize Sync
   init() {
     this.injectStatusIndicator();
     this.backgroundSync();
-    this.startPolling(3000);
+    this.startPolling(this.DEFAULT_POLL_MS);
   },
 
   isEnabled() {
@@ -36,11 +38,12 @@ const Sync = {
     return headers;
   },
 
-  startPolling(ms = 3000) {
+  startPolling(ms) {
+    const interval = ms || this.DEFAULT_POLL_MS;
     if (this.pollingIntervalId) clearInterval(this.pollingIntervalId);
     this.pollingIntervalId = setInterval(() => {
       this.backgroundSync(true);
-    }, ms);
+    }, interval);
   },
 
   stopPolling() {
@@ -196,11 +199,22 @@ const Sync = {
       }
 
       this.lastSyncTime = new Date().toISOString();
+      this.consecutiveErrors = 0;
+      // Khôi phục polling interval về mặc định nếu đang backoff
+      this.startPolling(this.DEFAULT_POLL_MS);
       this.updateStatusUI('synced');
     } catch (e) {
       console.error('☁️ Sync error:', e);
-      if (!isSilent) {
+      this.consecutiveErrors++;
+      // Hiển thị lỗi nếu: không phải silent mode, HOẶC lỗi liên tục >= 3 lần
+      if (!isSilent || this.consecutiveErrors >= 3) {
         this.updateStatusUI('error');
+      }
+      // Exponential backoff: 10s → 20s → 40s (max 60s)
+      if (this.consecutiveErrors >= 3) {
+        const backoffMs = Math.min(this.DEFAULT_POLL_MS * Math.pow(2, this.consecutiveErrors - 2), 60000);
+        console.log(`☁️ Backoff: ${backoffMs / 1000}s (lỗi liên tục ${this.consecutiveErrors} lần)`);
+        this.startPolling(backoffMs);
       }
     } finally {
       this.isSyncing = false;
@@ -424,7 +438,7 @@ const Sync = {
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Tần suất tự động đồng bộ:</span>
-                <strong style="color: var(--color-primary, #2b5797);">3 giây / lần</strong>
+                <strong style="color: var(--color-primary, #2b5797);">10 giây / lần</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Đồng bộ lần cuối:</span>
