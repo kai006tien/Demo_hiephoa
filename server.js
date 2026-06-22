@@ -65,23 +65,35 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
   : [];
 
-if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push(
-    'http://localhost:10000', 'http://127.0.0.1:10000',
-    'http://localhost:5500', 'http://127.0.0.1:5500',
-    'http://localhost:3000', 'http://127.0.0.1:3000'
-  );
-}
+// Luôn cho phép domain production mặc định và localhost
+allowedOrigins.push(
+  'https://xahiephoa.onrender.com',
+  'http://localhost:10000', 'http://127.0.0.1:10000',
+  'http://localhost:5500', 'http://127.0.0.1:5500',
+  'http://localhost:3000', 'http://127.0.0.1:3000'
+);
 
 app.use(cors({
   origin: function (origin, callback) {
     // Cho phép requests không có origin (curl, mobile, server-to-server)
-    // HOẶC same-origin requests (origin === undefined khi cùng domain)
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Blocked by CORS policy'));
+    if (!origin) {
+      return callback(null, true);
     }
+    
+    // Kiểm tra xem origin có trong danh sách cho phép cố định không
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Tự động cho phép các tên miền phụ của onrender.com và localhost
+    const originLower = origin.toLowerCase();
+    if (originLower.endsWith('.onrender.com') || 
+        originLower.startsWith('http://localhost:') || 
+        originLower.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Blocked by CORS policy'));
   },
   credentials: true
 }));
