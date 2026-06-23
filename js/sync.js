@@ -405,26 +405,54 @@ const Sync = {
   },
 
   saveCloudDataToLocalStorage(cloudData) {
-    if (cloudData.Accounts && cloudData.Accounts.length > 0) {
-      localStorage.setItem('hha_accounts', JSON.stringify(cloudData.Accounts));
-    }
-    if (cloudData.Documents) {
-      localStorage.setItem('hha_documents', JSON.stringify(cloudData.Documents));
-    }
-    if (cloudData.Votes) {
-      localStorage.setItem('hha_votes', JSON.stringify(cloudData.Votes));
-    }
-    if (cloudData.Notifications) {
-      localStorage.setItem('hha_notifications', JSON.stringify(cloudData.Notifications));
-    }
-    if (cloudData.Files) {
-      localStorage.setItem('hha_files', JSON.stringify(cloudData.Files));
-    }
-    if (cloudData.Suggestions) {
-      localStorage.setItem('hha_suggestions', JSON.stringify(cloudData.Suggestions));
-    }
-    if (cloudData.Sessions) {
-      localStorage.setItem('hha_sessions', JSON.stringify(cloudData.Sessions));
+    try {
+      if (cloudData.Accounts && cloudData.Accounts.length > 0) {
+        localStorage.setItem('hha_accounts', JSON.stringify(cloudData.Accounts));
+      }
+      if (cloudData.Documents) {
+        localStorage.setItem('hha_documents', JSON.stringify(cloudData.Documents));
+      }
+      if (cloudData.Votes) {
+        localStorage.setItem('hha_votes', JSON.stringify(cloudData.Votes));
+      }
+      if (cloudData.Notifications) {
+        localStorage.setItem('hha_notifications', JSON.stringify(cloudData.Notifications));
+      }
+      if (cloudData.Files) {
+        localStorage.setItem('hha_files', JSON.stringify(cloudData.Files));
+      }
+      if (cloudData.Suggestions) {
+        localStorage.setItem('hha_suggestions', JSON.stringify(cloudData.Suggestions));
+      }
+      if (cloudData.Sessions) {
+        localStorage.setItem('hha_sessions', JSON.stringify(cloudData.Sessions));
+      }
+    } catch (e) {
+      if (e.name === 'QuotaExceededError' || e.code === 22 || (e.message && e.message.includes('quota'))) {
+        console.warn('⚠️ Hạn mức localStorage bị đầy! Tiến hành xóa cache file để giải phóng dung lượng...');
+        localStorage.removeItem('hha_files');
+        try {
+          // Thử ghi lại các dữ liệu cốt lõi
+          if (cloudData.Sessions) {
+            localStorage.setItem('hha_sessions', JSON.stringify(cloudData.Sessions));
+          }
+          console.log('✅ Đã giải phóng và ghi đè dữ liệu phiên họp thành công.');
+        } catch (retryErr) {
+          console.error('❌ Vẫn vượt quá hạn mức sau khi giải phóng hha_files. Xóa toàn bộ cache...', retryErr);
+          // Xóa hết cache, chỉ giữ lại auth token và session người dùng để tránh bị đăng xuất
+          const token = localStorage.getItem('hha_auth_token') || sessionStorage.getItem('hha_auth_token');
+          const userSession = localStorage.getItem('hha_session');
+          localStorage.clear();
+          if (token) {
+            sessionStorage.setItem('hha_auth_token', token);
+            localStorage.setItem('hha_auth_token', token);
+          }
+          if (userSession) localStorage.setItem('hha_session', userSession);
+          window.location.reload();
+        }
+      } else {
+        throw e;
+      }
     }
   },
 
