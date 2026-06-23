@@ -241,5 +241,31 @@ const Utils = {
         element.textContent = start;
       }
     }, 16);
+  },
+
+  // Resilient Fetch with auto-retry on network errors or 502/503/504 (cold start issues)
+  async resilientFetch(url, options = {}, retries = 3, delay = 2000) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        
+        // Thử lại nếu gặp lỗi phía máy chủ tạm thời (502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout)
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          console.warn(`ResilientFetch: Nhận trạng thái ${response.status} từ ${url}. Đang thử lại sau ${delay}ms... (${i + 1}/${retries})`);
+          if (i < retries - 1) {
+            await new Promise(res => setTimeout(res, delay));
+            continue;
+          }
+        }
+        return response;
+      } catch (err) {
+        console.warn(`ResilientFetch: Lỗi mạng khi kết nối đến ${url}: ${err.message}. Đang thử lại sau ${delay}ms... (${i + 1}/${retries})`);
+        if (i < retries - 1) {
+          await new Promise(res => setTimeout(res, delay));
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 };

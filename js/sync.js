@@ -16,9 +16,11 @@ const Sync = {
   KEEP_ALIVE_MS: 4 * 60 * 1000, // Ping server mỗi 4 phút để tránh Render sleep
   MAX_RETRY_BEFORE_ERROR: 5, // Số lần thử trước khi hiện "Lỗi kết nối"
   isRecovering: false,
+  mutationQueue: [],
 
   // Initialize Sync
   init() {
+    this.mutationQueue = JSON.parse(localStorage.getItem('hha_failed_mutations') || '[]');
     this.injectStatusIndicator();
     this.backgroundSync();
     this.startPolling(this.DEFAULT_POLL_MS);
@@ -261,6 +263,15 @@ const Sync = {
     // Không sync nếu chưa đăng nhập
     if (!Auth.getAuthToken()) return;
 
+    // Cố gắng xử lý hàng đợi đồng bộ local trước khi pull
+    if (this.mutationQueue.length > 0) {
+      await this.processMutationQueue();
+      if (this.mutationQueue.length > 0) {
+        console.warn('⚠️ Bỏ qua cập nhật dữ liệu từ máy chủ do còn thay đổi chưa được đồng bộ.');
+        return;
+      }
+    }
+
     const url = this.getUrl();
     if (!url) return;
 
@@ -443,38 +454,82 @@ const Sync = {
 
   async syncMutation(mutationType, sheetName, item) {
     if (!this.isEnabled()) return;
+
+    // Add to queue
+    const mutationId = `${mutationType}_${sheetName}_${item.id || Utils.generateId()}`;
+    const exists = this.mutationQueue.some(m => m.id === mutationId);
+    if (!exists) {
+      this.mutationQueue.push({
+        id: mutationId,
+        mutationType,
+        sheetName,
+        item,
+        timestamp: Date.now()
+      });
+      localStorage.setItem('hha_failed_mutations', JSON.stringify(this.mutationQueue));
+    }
+
+    await this.processMutationQueue();
+  },
+
+  isProcessingQueue: false,
+  async processMutationQueue() {
+    if (this.isProcessingQueue || this.mutationQueue.length === 0) return;
+    this.isProcessingQueue = true;
+    
     const url = this.getUrl();
-    if (!url) return;
+    if (!url) {
+      this.isProcessingQueue = false;
+      return;
+    }
 
     this.updateStatusUI('saving');
+    console.log(`☁️ Đang xử lý hàng đợi đồng bộ (${this.mutationQueue.length} thay đổi)...`);
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+    let successCount = 0;
+    
+    while (this.mutationQueue.length > 0) {
+      const mutation = this.mutationQueue[0];
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          action: 'mutation',
-          mutationType: mutationType,
-          sheet: sheetName,
-          item: item
-        }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({
+            action: 'mutation',
+            mutationType: mutation.mutationType,
+            sheet: mutation.sheetName,
+            item: mutation.item
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-      if (response.status === 401) {
-        this.handleUnauthorized();
-        return;
+        if (response.status === 401) {
+          this.isProcessingQueue = false;
+          this.handleUnauthorized();
+          return;
+        }
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        // Success: remove from queue
+        this.mutationQueue.shift();
+        localStorage.setItem('hha_failed_mutations', JSON.stringify(this.mutationQueue));
+        successCount++;
+      } catch (err) {
+        console.error(`☁️ Đồng bộ thất bại cho ${mutation.sheetName}:`, err.message);
+        this.updateStatusUI('error');
+        this.isProcessingQueue = false;
+        return; // Dừng xử lý hàng đợi, thử lại ở lần sau
       }
-
-      setTimeout(() => this.updateStatusUI('synced'), 500);
-    } catch (e) {
-      console.error(`☁️ Error syncing mutation in ${sheetName}:`, e);
-      this.updateStatusUI('error');
     }
+
+    console.log(`☁️ Đã đồng bộ thành công ${successCount} thay đổi lên đám mây.`);
+    this.updateStatusUI('synced');
+    this.isProcessingQueue = false;
   },
 
   async downloadAllFromCloud() {

@@ -194,7 +194,7 @@ const FileManager = {
       if (authToken) {
         Utils.showToast('info', 'Đang tải lên', 'Đang tải file lên cơ sở dữ liệu...');
         try {
-          const response = await fetch('/api/uploadFile', {
+          const response = await Utils.resilientFetch('/api/uploadFile', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -277,7 +277,7 @@ const FileManager = {
     if (file.downloadUrl) {
       try {
         const token = Auth.getAuthToken();
-        const response = await fetch(file.downloadUrl, {
+        const response = await Utils.resilientFetch(file.downloadUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 

@@ -10,7 +10,7 @@ const Auth = {
   // Login - gọi API server để xác thực
   async login(username, password) {
     try {
-      const response = await fetch('/api/login', {
+      const response = await Utils.resilientFetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -47,7 +47,7 @@ const Auth = {
     try {
       const token = Auth.getAuthToken();
       if (token) {
-        await fetch('/api/logout', {
+        await Utils.resilientFetch('/api/logout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ const Auth = {
   async changePassword(userId, oldPassword, newPassword) {
     try {
       const token = Auth.getAuthToken();
-      const response = await fetch('/api/change-password', {
+      const response = await Utils.resilientFetch('/api/change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

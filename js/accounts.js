@@ -142,7 +142,7 @@ const Accounts = {
 
       try {
         const token = Auth.getAuthToken();
-        const response = await fetch('/api/create-account', {
+        const response = await Utils.resilientFetch('/api/create-account', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ const Accounts = {
     if (confirm(`Đặt lại mật khẩu cho "${account.fullName}" về "123456"?`)) {
       try {
         const token = Auth.getAuthToken();
-        const response = await fetch('/api/reset-password', {
+        const response = await Utils.resilientFetch('/api/reset-password', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -18,22 +18,110 @@ const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toSt
 const BCRYPT_ROUNDS = 12;
 
 // ============================================
-// IN-MEMORY SESSION STORE
+// RESILIENT SESSION STORE (MongoDB + In-Memory Fallback)
 // ============================================
-const activeSessions = new Map();
+let isMongoConnected = false;
+const localSessions = new Map();
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 giờ (tránh mất session trên Render free tier)
 
 function createSessionToken() {
   return crypto.randomBytes(48).toString('hex');
 }
 
-function cleanExpiredSessions() {
-  const now = Date.now();
-  for (const [token, session] of activeSessions) {
-    if (session.expiresAt < now) {
-      activeSessions.delete(token);
+const SessionStore = {
+  async get(token) {
+    if (isMongoConnected) {
+      try {
+        const s = await LoginSessionModel.findOne({ token });
+        if (s) {
+          return {
+            userId: s.userId,
+            username: s.username,
+            fullName: s.fullName,
+            role: s.role,
+            position: s.position,
+            loginTime: s.loginTime,
+            expiresAt: s.expiresAt
+          };
+        }
+        return localSessions.get(token);
+      } catch (err) {
+        console.error('SessionStore get error:', err.message);
+        return localSessions.get(token);
+      }
+    } else {
+      return localSessions.get(token);
+    }
+  },
+
+  async set(token, sessionData) {
+    localSessions.set(token, sessionData);
+
+    if (isMongoConnected) {
+      try {
+        await LoginSessionModel.create({
+          token,
+          userId: sessionData.userId,
+          username: sessionData.username,
+          fullName: sessionData.fullName,
+          role: sessionData.role,
+          position: sessionData.position,
+          loginTime: sessionData.loginTime,
+          expiresAt: sessionData.expiresAt
+        });
+      } catch (err) {
+        console.error('SessionStore set error:', err.message);
+      }
+    }
+  },
+
+  async delete(token) {
+    localSessions.delete(token);
+
+    if (isMongoConnected) {
+      try {
+        await LoginSessionModel.deleteOne({ token });
+      } catch (err) {
+        console.error('SessionStore delete error:', err.message);
+      }
+    }
+  },
+
+  async updateExpiresAt(token, expiresAt) {
+    const localS = localSessions.get(token);
+    if (localS) {
+      localS.expiresAt = expiresAt;
+    }
+
+    if (isMongoConnected) {
+      try {
+        await LoginSessionModel.updateOne({ token }, { $set: { expiresAt } });
+      } catch (err) {
+        console.error('SessionStore updateExpiresAt error:', err.message);
+      }
+    }
+  },
+
+  async cleanExpired() {
+    const now = Date.now();
+    for (const [token, session] of localSessions) {
+      if (session.expiresAt < now) {
+        localSessions.delete(token);
+      }
+    }
+
+    if (isMongoConnected) {
+      try {
+        await LoginSessionModel.deleteMany({ expiresAt: { $lt: now } });
+      } catch (err) {
+        console.error('SessionStore cleanExpired error:', err.message);
+      }
     }
   }
+};
+
+function cleanExpiredSessions() {
+  SessionStore.cleanExpired().catch(err => console.error('Error cleaning expired sessions:', err));
 }
 // Dọn session hết hạn mỗi 5 phút
 setInterval(cleanExpiredSessions, 5 * 60 * 1000);
@@ -154,7 +242,6 @@ app.use(express.static(__dirname, {
 // ============================================
 // DATABASE CONNECTION & MODEL SCHEMAS
 // ============================================
-let isMongoConnected = false;
 
 const AccountSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -247,6 +334,20 @@ const NotificationModel = mongoose.model('Notification', NotificationSchema);
 const FileModel = mongoose.model('File', FileSchema);
 const SuggestionModel = mongoose.model('Suggestion', SuggestionSchema);
 const SessionModel = mongoose.model('Session', SessionSchema);
+
+const LoginSessionSchema = new mongoose.Schema({
+  token: { type: String, required: true, unique: true },
+  userId: String,
+  username: String,
+  fullName: String,
+  role: String,
+  position: String,
+  loginTime: String,
+  expiresAt: Number
+}, { strict: false, id: false, collection: 'login_sessions' });
+
+const LoginSessionModel = mongoose.model('LoginSession', LoginSessionSchema);
+
 
 // ============================================
 // PASSWORD MIGRATION: Base64 → bcrypt (with repair logic)
@@ -454,26 +555,28 @@ function writeLocalDB(data) {
 // ============================================
 
 // Xác thực session token từ Authorization header
-function checkAuth(req, res, next) {
+async function checkAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: Vui lòng đăng nhập.' });
   }
 
   const token = authHeader.split(' ')[1];
-  const session = activeSessions.get(token);
+  const session = await SessionStore.get(token);
 
   if (!session) {
     return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.' });
   }
 
   if (session.expiresAt < Date.now()) {
-    activeSessions.delete(token);
+    await SessionStore.delete(token);
     return res.status(401).json({ error: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
   }
 
   // Gia hạn session mỗi lần có request hợp lệ
-  session.expiresAt = Date.now() + SESSION_DURATION_MS;
+  const newExpiresAt = Date.now() + SESSION_DURATION_MS;
+  await SessionStore.updateExpiresAt(token, newExpiresAt);
+  session.expiresAt = newExpiresAt;
   req.userSession = session;
   next();
 }
@@ -529,7 +632,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
       expiresAt: Date.now() + SESSION_DURATION_MS
     };
 
-    activeSessions.set(sessionToken, sessionData);
+    await SessionStore.set(sessionToken, sessionData);
 
     // Trả về token và thông tin user (KHÔNG trả về mật khẩu)
     res.json({
@@ -551,11 +654,11 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 });
 
 // POST /api/logout - Đăng xuất
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    activeSessions.delete(token);
+    await SessionStore.delete(token);
   }
   res.json({ success: true, message: 'Đã đăng xuất.' });
 });
@@ -1231,22 +1334,23 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET /api/validate-session - Kiểm tra session còn hợp lệ không
-app.get('/api/validate-session', (req, res) => {
+app.get('/api/validate-session', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.json({ valid: false, reason: 'no_token' });
   }
   const token = authHeader.split(' ')[1];
-  const session = activeSessions.get(token);
+  const session = await SessionStore.get(token);
   if (!session) {
     return res.json({ valid: false, reason: 'invalid_session' });
   }
   if (session.expiresAt < Date.now()) {
-    activeSessions.delete(token);
+    await SessionStore.delete(token);
     return res.json({ valid: false, reason: 'expired' });
   }
   // Gia hạn session
-  session.expiresAt = Date.now() + SESSION_DURATION_MS;
+  const newExpiresAt = Date.now() + SESSION_DURATION_MS;
+  await SessionStore.updateExpiresAt(token, newExpiresAt);
   return res.json({ valid: true, session: { userId: session.userId, role: session.role } });
 });
 

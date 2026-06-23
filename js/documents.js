@@ -234,7 +234,7 @@ const Documents = {
         }
 
         const token = Auth.getAuthToken();
-        const response = await fetch('/api/uploadFile', {
+        const response = await Utils.resilientFetch('/api/uploadFile', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -421,7 +421,7 @@ const Documents = {
     if (doc.downloadUrl) {
       try {
         const token = Auth.getAuthToken();
-        const response = await fetch(doc.downloadUrl, {
+        const response = await Utils.resilientFetch(doc.downloadUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
