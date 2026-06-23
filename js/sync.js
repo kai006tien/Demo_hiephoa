@@ -20,6 +20,17 @@ const Sync = {
 
   // Initialize Sync
   init() {
+    try {
+      console.log('--- LOCALSTORAGE DIAGNOSIS ---');
+      Object.keys(localStorage).forEach(k => {
+        const val = localStorage.getItem(k) || '';
+        console.log(`LS_KEY_SIZE: ${k} = ${(val.length / 1024).toFixed(2)} KB (${val.length} chars)`);
+      });
+      console.log('-----------------------------');
+    } catch (e) {
+      console.error('Diag error:', e);
+    }
+
     this.mutationQueue = JSON.parse(localStorage.getItem('hha_failed_mutations') || '[]');
     this.injectStatusIndicator();
     this.backgroundSync();
