@@ -516,13 +516,16 @@ if (MONGODB_URI && !MONGODB_URI.includes('<password>')) {
       await initializeMongoDbData();
       await migratePasswordsToBcrypt();
       await repairMissingIds();
+      await migrateSessionFiles();
     })
-    .catch((err) => {
+    .catch(async (err) => {
       console.error('❤️ MongoDB connection error:', err.message);
       console.log('⚠️ Running in local JSON storage fallback mode.');
+      await migrateSessionFiles();
     });
 } else {
   console.log('⚠️ MONGODB_URI not configured. Running in local JSON storage fallback mode.');
+  migrateSessionFiles();
 }
 
 // Local JSON File DB Fallback helpers
@@ -549,6 +552,192 @@ function writeLocalDB(data) {
     return false;
   }
 }
+
+// Hàm di chuyển tệp base64 trong Kỳ họp ra ngoài collection files riêng lẻ
+async function migrateSessionFiles() {
+  try {
+    if (isMongoConnected) {
+      console.log('🔄 Đang quét và di chuyển file base64 từ Sessions trong MongoDB Atlas...');
+      const sessions = await SessionModel.find({});
+      let totalMigrated = 0;
+      
+      for (const session of sessions) {
+        let modified = false;
+        
+        if (session.documents && Array.isArray(session.documents)) {
+          for (let doc of session.documents) {
+            if (doc.fileData && doc.fileData.startsWith('data:')) {
+              const fileId = doc.id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+              const downloadUrl = `/api/download/${fileId}`;
+              
+              // Tạo file record mới
+              await FileModel.findOneAndUpdate(
+                { id: fileId },
+                {
+                  $set: {
+                    id: fileId,
+                    fileName: doc.fileName,
+                    fileSize: doc.fileSize,
+                    uploadedBy: session.createdBy || 'admin',
+                    description: 'Di chuyển tự động từ kỳ họp',
+                    createdAt: doc.uploadedAt || new Date().toISOString(),
+                    downloadUrl: downloadUrl,
+                    fileData: doc.fileData
+                  }
+                },
+                { upsert: true }
+              );
+              
+              doc.downloadUrl = downloadUrl;
+              doc.fileData = null;
+              modified = true;
+              totalMigrated++;
+            }
+          }
+        }
+        
+        if (session.resolutions && Array.isArray(session.resolutions)) {
+          for (let res of session.resolutions) {
+            if (res.fileData && res.fileData.startsWith('data:')) {
+              const fileId = res.id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+              const downloadUrl = `/api/download/${fileId}`;
+              
+              // Tạo file record mới
+              await FileModel.findOneAndUpdate(
+                { id: fileId },
+                {
+                  $set: {
+                    id: fileId,
+                    fileName: res.fileName,
+                    fileSize: res.fileSize,
+                    uploadedBy: session.createdBy || 'admin',
+                    description: 'Di chuyển tự động từ dự thảo nghị quyết',
+                    createdAt: res.uploadedAt || new Date().toISOString(),
+                    downloadUrl: downloadUrl,
+                    fileData: res.fileData
+                  }
+                },
+                { upsert: true }
+              );
+              
+              res.downloadUrl = downloadUrl;
+              res.fileData = null;
+              modified = true;
+              totalMigrated++;
+            }
+          }
+        }
+        
+        if (modified) {
+          session.markModified('documents');
+          session.markModified('resolutions');
+          await session.save();
+          console.log(`✅ Đã di chuyển file trong Kỳ họp: "${session.name}"`);
+        }
+      }
+      
+      if (totalMigrated > 0) {
+        console.log(`✅ Di chuyển thành công ${totalMigrated} file base64 từ Sessions lên FileModel.`);
+      } else {
+        console.log('💚 Không phát hiện file base64 trực tiếp nào trong Sessions.');
+      }
+    } else {
+      // Local DB Fallback migration
+      console.log('🔄 Đang quét và di chuyển file base64 từ Sessions trong db.json...');
+      const db = readLocalDB();
+      let totalMigrated = 0;
+      let dbModified = false;
+      
+      if (db.sessions && Array.isArray(db.sessions)) {
+        db.files = db.files || [];
+        for (const session of db.sessions) {
+          let modified = false;
+          
+          if (session.documents && Array.isArray(session.documents)) {
+            for (let doc of session.documents) {
+              if (doc.fileData && doc.fileData.startsWith('data:')) {
+                const fileId = doc.id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+                const downloadUrl = `/api/download/${fileId}`;
+                
+                const fileDoc = {
+                  id: fileId,
+                  fileName: doc.fileName,
+                  fileSize: doc.fileSize,
+                  uploadedBy: session.createdBy || 'admin',
+                  description: 'Di chuyển tự động từ kỳ họp',
+                  createdAt: doc.uploadedAt || new Date().toISOString(),
+                  downloadUrl: downloadUrl,
+                  fileData: doc.fileData
+                };
+                
+                // Add to files if not exists
+                const idx = db.files.findIndex(f => f.id === fileId);
+                if (idx !== -1) {
+                  db.files[idx] = fileDoc;
+                } else {
+                  db.files.unshift(fileDoc);
+                }
+                
+                doc.downloadUrl = downloadUrl;
+                doc.fileData = null;
+                modified = true;
+                totalMigrated++;
+              }
+            }
+          }
+          
+          if (session.resolutions && Array.isArray(session.resolutions)) {
+            for (let res of session.resolutions) {
+              if (res.fileData && res.fileData.startsWith('data:')) {
+                const fileId = res.id || 'file_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+                const downloadUrl = `/api/download/${fileId}`;
+                
+                const fileDoc = {
+                  id: fileId,
+                  fileName: res.fileName,
+                  fileSize: res.fileSize,
+                  uploadedBy: session.createdBy || 'admin',
+                  description: 'Di chuyển tự động từ dự thảo nghị quyết',
+                  createdAt: res.uploadedAt || new Date().toISOString(),
+                  downloadUrl: downloadUrl,
+                  fileData: res.fileData
+                };
+                
+                // Add to files if not exists
+                const idx = db.files.findIndex(f => f.id === fileId);
+                if (idx !== -1) {
+                  db.files[idx] = fileDoc;
+                } else {
+                  db.files.unshift(fileDoc);
+                }
+                
+                res.downloadUrl = downloadUrl;
+                res.fileData = null;
+                modified = true;
+                totalMigrated++;
+              }
+            }
+          }
+          
+          if (modified) {
+            dbModified = true;
+            console.log(`✅ Đã di chuyển file trong Kỳ họp local: "${session.name}"`);
+          }
+        }
+      }
+      
+      if (dbModified) {
+        writeLocalDB(db);
+        console.log(`✅ Di chuyển thành công ${totalMigrated} file base64 từ Sessions local.`);
+      } else {
+        console.log('💚 Không phát hiện file base64 trực tiếp nào trong Sessions local.');
+      }
+    }
+  } catch (err) {
+    console.error('❌ Lỗi khi di chuyển file trong Sessions:', err.message);
+  }
+}
+
 
 // ============================================
 // AUTHENTICATION MIDDLEWARE

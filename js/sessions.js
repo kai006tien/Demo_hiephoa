@@ -468,43 +468,82 @@ const Sessions = {
       const reader = new FileReader();
       reader.onload = (e) => {
         const fileData = e.target.result;
-        const fileEntry = {
-          id: Utils.generateId(),
+        const fileId = Utils.generateId();
+        
+        // Gửi tệp lên server qua API uploadFile
+        const payload = {
+          id: fileId,
           fileName: file.name,
-          fileSize: file.size,
-          fileData: fileData,
-          uploadedAt: Utils.getCurrentDate()
+          mimeType: file.type,
+          base64: fileData,
+          uploadedBy: Auth.getSession() ? Auth.getSession().fullName : 'admin',
+          description: fileType === 'document' ? 'Tài liệu kỳ họp' : 'Dự thảo nghị quyết'
         };
 
-        if (fileType === 'resolution') {
-          // For resolutions, add title field (initially use filename)
-          fileEntry.title = file.name.replace(/\.[^/.]+$/, ''); // Remove extension for title
-          fileEntry.vote = null; // No vote yet
+        const token = Auth.getAuthToken();
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // Update session
-        const session = Storage.getSessions().find(s => s.id === sessionId);
-        if (!session) return;
+        Utils.resilientFetch('/api/uploadFile', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(payload)
+        })
+        .then(async response => {
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Lỗi tải lên máy chủ');
+          }
+          return response.json();
+        })
+        .then(result => {
+          // Lưu tệp vào session với downloadUrl nhận được từ server, fileData để null để không lưu base64 ở local
+          const fileEntry = {
+            id: fileId,
+            fileName: file.name,
+            fileSize: file.size,
+            downloadUrl: result.downloadUrl,
+            fileData: null,
+            uploadedAt: Utils.getCurrentDate()
+          };
 
-        if (fileType === 'document') {
-          if (!session.documents) session.documents = [];
-          session.documents.push(fileEntry);
-        } else {
-          if (!session.resolutions) session.resolutions = [];
-          session.resolutions.push(fileEntry);
-        }
+          if (fileType === 'resolution') {
+            fileEntry.title = file.name.replace(/\.[^/.]+$/, '');
+            fileEntry.vote = null;
+          }
 
-        Storage.updateSession(sessionId, {
-          documents: session.documents,
-          resolutions: session.resolutions
+          // Cập nhật session
+          const session = Storage.getSessions().find(s => s.id === sessionId);
+          if (!session) return;
+
+          if (fileType === 'document') {
+            if (!session.documents) session.documents = [];
+            session.documents.push(fileEntry);
+          } else {
+            if (!session.resolutions) session.resolutions = [];
+            session.resolutions.push(fileEntry);
+          }
+
+          Storage.updateSession(sessionId, {
+            documents: session.documents,
+            resolutions: session.resolutions
+          });
+
+          // Thông báo tải thành công
+          Utils.showToast('success', 'Thành công', `Đã tải lên và lưu trữ thành công "${file.name}"`);
+
+          // Re-render
+          const containerId = Sessions.currentType === 'regular' ? 'sessions-regular-list' : 'sessions-special-list';
+          Sessions.renderSessionList(Sessions.currentType, containerId);
+        })
+        .catch(err => {
+          console.error("Tải file lên thất bại:", err);
+          Utils.showToast('error', 'Lỗi', `Không thể tải file "${file.name}": ${err.message}`);
         });
-
-        // Thông báo tải thành công
-        Utils.showToast('success', 'Thành công', `Đã tải lên và lưu trữ thành công "${file.name}"`);
-
-        // Re-render
-        const containerId = Sessions.currentType === 'regular' ? 'sessions-regular-list' : 'sessions-special-list';
-        Sessions.renderSessionList(Sessions.currentType, containerId);
       };
 
       reader.readAsDataURL(file);
@@ -525,118 +564,150 @@ const Sessions = {
       file = (session.resolutions || []).find(r => r.id === fileId);
     }
 
-    if (!file || !file.fileData) {
-      Utils.showToast('error', 'Lỗi', 'Không tìm thấy dữ liệu file');
+    if (!file) {
+      Utils.showToast('error', 'Lỗi', 'Không tìm thấy file');
       return;
     }
 
-    const ext = Sessions.getFileExtension(file.fileName);
-    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
+    const runPreview = (fileData) => {
+      const ext = Sessions.getFileExtension(file.fileName);
+      const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
 
-    if (ext === 'pdf') {
-      // Open PDF in preview modal
-      const modal = document.getElementById('modal-file-preview');
-      const body = document.getElementById('modal-file-preview-body');
-      const title = document.getElementById('modal-file-preview-title');
+      if (ext === 'pdf') {
+        // Open PDF in preview modal
+        const modal = document.getElementById('modal-file-preview');
+        const body = document.getElementById('modal-file-preview-body');
+        const title = document.getElementById('modal-file-preview-title');
 
-      if (title) title.textContent = file.fileName;
-      if (body) {
-        let srcUrl = file.fileData;
-        try {
-          const blob = Sessions.base64ToBlob(file.fileData);
-          if (blob) {
-            if (window.currentPreviewBlobUrl) {
-              URL.revokeObjectURL(window.currentPreviewBlobUrl);
+        if (title) title.textContent = file.fileName;
+        if (body) {
+          let srcUrl = fileData;
+          try {
+            const blob = Sessions.base64ToBlob(fileData);
+            if (blob) {
+              if (window.currentPreviewBlobUrl) {
+                URL.revokeObjectURL(window.currentPreviewBlobUrl);
+              }
+              window.currentPreviewBlobUrl = URL.createObjectURL(blob);
+              srcUrl = window.currentPreviewBlobUrl;
             }
-            window.currentPreviewBlobUrl = URL.createObjectURL(blob);
-            srcUrl = window.currentPreviewBlobUrl;
+          } catch (e) {
+            console.error("Failed to generate blob url for preview", e);
           }
-        } catch (e) {
-          console.error("Failed to generate blob url for preview", e);
+
+          body.innerHTML = `
+            <div class="preview-modal__content" style="height:70vh;">
+              <iframe src="${srcUrl}" type="application/pdf" style="width:100%; height:100%; border:none;"></iframe>
+            </div>`;
         }
+        Utils.openModal('modal-file-preview');
+      } else if (isImage) {
+        // Open Image in preview modal
+        const modal = document.getElementById('modal-file-preview');
+        const body = document.getElementById('modal-file-preview-body');
+        const title = document.getElementById('modal-file-preview-title');
 
-        body.innerHTML = `
-          <div class="preview-modal__content" style="height:70vh;">
-            <iframe src="${srcUrl}" type="application/pdf" style="width:100%; height:100%; border:none;"></iframe>
-          </div>`;
-      }
-      Utils.openModal('modal-file-preview');
-    } else if (isImage) {
-      // Open Image in preview modal
-      const modal = document.getElementById('modal-file-preview');
-      const body = document.getElementById('modal-file-preview-body');
-      const title = document.getElementById('modal-file-preview-title');
+        if (title) title.textContent = file.fileName;
+        if (body) {
+          body.innerHTML = `
+            <div style="display:flex; justify-content:center; align-items:center; background:#f0f2f5; padding:20px; border-radius:8px; overflow:auto; max-height:75vh;">
+              <img src="${fileData}" style="max-width:100%; max-height:70vh; object-fit:contain; border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" alt="${Utils.escapeHtml(file.fileName)}">
+            </div>`;
+        }
+        Utils.openModal('modal-file-preview');
+      } else if (ext === 'docx') {
+        // Open Docx using docx-preview
+        const modal = document.getElementById('modal-file-preview');
+        const body = document.getElementById('modal-file-preview-body');
+        const title = document.getElementById('modal-file-preview-title');
 
-      if (title) title.textContent = file.fileName;
-      if (body) {
-        body.innerHTML = `
-          <div style="display:flex; justify-content:center; align-items:center; background:#f0f2f5; padding:20px; border-radius:8px; overflow:auto; max-height:75vh;">
-            <img src="${file.fileData}" style="max-width:100%; max-height:70vh; object-fit:contain; border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" alt="${Utils.escapeHtml(file.fileName)}">
-          </div>`;
-      }
-      Utils.openModal('modal-file-preview');
-    } else if (ext === 'docx') {
-      // Open Docx using docx-preview
-      const modal = document.getElementById('modal-file-preview');
-      const body = document.getElementById('modal-file-preview-body');
-      const title = document.getElementById('modal-file-preview-title');
+        if (title) title.textContent = file.fileName;
+        if (body) {
+          body.innerHTML = `
+            <div id="docx-preview-container" class="preview-modal__docx" style="padding: 20px; background: white; overflow: auto; max-height: 70vh; border: 1px solid var(--color-border); border-radius: 4px;">
+              <div style="text-align:center; padding: 40px 0;">
+                <p style="color: var(--color-text-secondary);">Đang tải tài liệu...</p>
+              </div>
+            </div>`;
+        }
+        Utils.openModal('modal-file-preview');
 
-      if (title) title.textContent = file.fileName;
-      if (body) {
-        body.innerHTML = `
-          <div id="docx-preview-container" class="preview-modal__docx" style="padding: 20px; background: white; overflow: auto; max-height: 70vh; border: 1px solid var(--color-border); border-radius: 4px;">
-            <div style="text-align:center; padding: 40px 0;">
-              <p style="color: var(--color-text-secondary);">Đang tải tài liệu...</p>
-            </div>
-          </div>`;
-      }
-      Utils.openModal('modal-file-preview');
-
-      setTimeout(() => {
-        try {
-          const base64Data = file.fileData.split(',')[1];
-          const arrayBuffer = Sessions.base64ToArrayBuffer(base64Data);
-          const container = document.getElementById('docx-preview-container');
-          container.innerHTML = ''; // clear loading state
-          
-          if (typeof docx !== 'undefined') {
-            docx.renderAsync(arrayBuffer, container)
-              .then(() => console.log("docx rendered successfully"))
-              .catch(err => {
-                console.error(err);
-                container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi hiển thị file Word: ${err.message}</div>`;
-              });
-          } else {
-            container.innerHTML = `<div class="alert alert-warning" style="margin:20px;">Thư viện hiển thị Word chưa được tải hoàn toàn. Vui lòng thử lại.</div>`;
+        setTimeout(() => {
+          try {
+            const base64Data = fileData.split(',')[1];
+            const arrayBuffer = Sessions.base64ToArrayBuffer(base64Data);
+            const container = document.getElementById('docx-preview-container');
+            container.innerHTML = ''; // clear loading state
+            
+            if (typeof docx !== 'undefined') {
+              docx.renderAsync(arrayBuffer, container)
+                .then(() => console.log("docx rendered successfully"))
+                .catch(err => {
+                  console.error(err);
+                  container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi hiển thị file Word: ${err.message}</div>`;
+                });
+            } else {
+              container.innerHTML = `<div class="alert alert-warning" style="margin:20px;">Thư viện hiển thị Word chưa được tải hoàn toàn. Vui lòng thử lại.</div>`;
+            }
+          } catch (err) {
+            console.error(err);
+            const container = document.getElementById('docx-preview-container');
+            if (container) container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi giải mã dữ liệu: ${err.message}</div>`;
           }
-        } catch (err) {
+        }, 100);
+      } else {
+        // Word/Other fallback - show info only
+        const modal = document.getElementById('modal-file-preview');
+        const body = document.getElementById('modal-file-preview-body');
+        const title = document.getElementById('modal-file-preview-title');
+
+        if (title) title.textContent = file.fileName;
+        if (body) {
+          body.innerHTML = `
+            <div class="preview-modal__word-fallback">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div style="text-align:center">
+                <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${Utils.escapeHtml(file.fileName)}</div>
+                <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">${Sessions.formatFileSize(file.fileSize)}</div>
+                <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Trình duyệt không hỗ trợ xem trước định dạng này.</div>
+                <button class="btn btn-primary" onclick="Sessions.downloadFile('${sessionId}','${fileType}','${fileId}')">
+                  ⬇ Tải file về máy
+                </button>
+              </div>
+            </div>`;
+        }
+        Utils.openModal('modal-file-preview');
+      }
+    };
+
+    if (file.fileData) {
+      runPreview(file.fileData);
+    } else if (file.downloadUrl) {
+      Utils.showToast('info', 'Đang tải', 'Đang tải file để xem trước...');
+      const token = Auth.getAuthToken();
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      Utils.resilientFetch(file.downloadUrl, { headers })
+        .then(response => {
+          if (!response.ok) throw new Error('Không thể tải file từ máy chủ');
+          return response.blob();
+        })
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            runPreview(e.target.result);
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(err => {
           console.error(err);
-          const container = document.getElementById('docx-preview-container');
-          if (container) container.innerHTML = `<div class="alert alert-danger" style="margin:20px; color:var(--color-danger)">Lỗi giải mã dữ liệu: ${err.message}</div>`;
-        }
-      }, 100);
+          Utils.showToast('error', 'Lỗi', 'Không thể xem trước file: ' + err.message);
+        });
     } else {
-      // Word/Other fallback - show info only
-      const modal = document.getElementById('modal-file-preview');
-      const body = document.getElementById('modal-file-preview-body');
-      const title = document.getElementById('modal-file-preview-title');
-
-      if (title) title.textContent = file.fileName;
-      if (body) {
-        body.innerHTML = `
-          <div class="preview-modal__word-fallback">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <div style="text-align:center">
-              <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${Utils.escapeHtml(file.fileName)}</div>
-              <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">${Sessions.formatFileSize(file.fileSize)}</div>
-              <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Trình duyệt không hỗ trợ xem trước định dạng này.</div>
-              <button class="btn btn-primary" onclick="Sessions.downloadFile('${sessionId}','${fileType}','${fileId}')">
-                ⬇ Tải file về máy
-              </button>
-            </div>
-          </div>`;
-      }
-      Utils.openModal('modal-file-preview');
+      Utils.showToast('error', 'Lỗi', 'Không tìm thấy dữ liệu file để xem trước');
     }
   },
 
@@ -681,8 +752,54 @@ const Sessions = {
       file = (session.resolutions || []).find(r => r.id === fileId);
     }
 
-    if (!file || !file.fileData) {
+    if (!file) {
       Utils.showToast('error', 'Lỗi', 'Không tìm thấy file');
+      return;
+    }
+
+    // Nếu có downloadUrl, tải qua API với token
+    if (file.downloadUrl) {
+      Utils.showToast('info', 'Đang tải', 'Đang tải file từ máy chủ...');
+      const token = Auth.getAuthToken();
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      Utils.resilientFetch(file.downloadUrl, { headers })
+        .then(response => {
+          if (!response.ok) throw new Error('Không thể tải file từ máy chủ');
+          return response.blob();
+        })
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        })
+        .catch(err => {
+          console.error(err);
+          // Fallback sang base64 nếu có sẵn ở local
+          if (file.fileData) {
+            const link = document.createElement('a');
+            link.href = file.fileData;
+            link.download = file.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } else {
+            Utils.showToast('error', 'Lỗi', 'Không thể tải file: ' + err.message);
+          }
+        });
+      return;
+    }
+
+    if (!file.fileData) {
+      Utils.showToast('error', 'Lỗi', 'Không có dữ liệu file');
       return;
     }
 
