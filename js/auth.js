@@ -3,8 +3,8 @@
    ============================================ */
 
 const Auth = {
-  // Session timeout: 30 phút không hoạt động sẽ tự động đăng xuất
-  SESSION_TIMEOUT_MS: 30 * 60 * 1000,
+  // Session timeout: 24 giờ không hoạt động sẽ tự động đăng xuất (đồng bộ với server)
+  SESSION_TIMEOUT_MS: 24 * 60 * 60 * 1000,
   activityTimer: null,
 
   // Login - gọi API server để xác thực

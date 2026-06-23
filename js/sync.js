@@ -1,5 +1,5 @@
 /* ============================================
-   SYNC - Cloud Sync Engine (Secured)
+   SYNC - Cloud Sync Engine (Secured + Resilient)
    ============================================ */
 
 const Sync = {
@@ -10,14 +10,19 @@ const Sync = {
 
   isSyncing: false,
   pollingIntervalId: null,
+  keepAliveIntervalId: null,
   consecutiveErrors: 0,
   DEFAULT_POLL_MS: 10000,
+  KEEP_ALIVE_MS: 4 * 60 * 1000, // Ping server mỗi 4 phút để tránh Render sleep
+  MAX_RETRY_BEFORE_ERROR: 5, // Số lần thử trước khi hiện "Lỗi kết nối"
+  isRecovering: false,
 
   // Initialize Sync
   init() {
     this.injectStatusIndicator();
     this.backgroundSync();
     this.startPolling(this.DEFAULT_POLL_MS);
+    this.startKeepAlive();
   },
 
   isEnabled() {
@@ -50,6 +55,66 @@ const Sync = {
     if (this.pollingIntervalId) {
       clearInterval(this.pollingIntervalId);
       this.pollingIntervalId = null;
+    }
+  },
+
+  // Keep-alive: ping server định kỳ để tránh Render free tier ngủ
+  startKeepAlive() {
+    if (this.keepAliveIntervalId) clearInterval(this.keepAliveIntervalId);
+    this.keepAliveIntervalId = setInterval(() => {
+      this.pingServer();
+    }, this.KEEP_ALIVE_MS);
+    // Ping ngay lần đầu
+    this.pingServer();
+  },
+
+  stopKeepAlive() {
+    if (this.keepAliveIntervalId) {
+      clearInterval(this.keepAliveIntervalId);
+      this.keepAliveIntervalId = null;
+    }
+  },
+
+  // Ping server health endpoint (không cần auth)
+  async pingServer() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch('/api/health', { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('💓 Server alive:', data.status, '| Uptime:', Math.floor(data.uptime) + 's');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('💔 Server ping failed:', e.message);
+      return false;
+    }
+  },
+
+  // Kiểm tra session còn hợp lệ không
+  async validateSession() {
+    try {
+      const token = Auth.getAuthToken();
+      if (!token) return false;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch('/api/validate-session', {
+        headers: this.getAuthHeaders(),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) return false;
+
+      const result = await response.json();
+      return result.valid === true;
+    } catch (e) {
+      console.warn('⚠️ Session validation failed:', e.message);
+      return false;
     }
   },
 
@@ -89,6 +154,11 @@ const Sync = {
       dot.style.boxShadow = '0 0 8px #F59E0B';
       dot.classList.add('animate-pulse');
       text.textContent = status === 'saving' ? 'Đang lưu...' : 'Đang đồng bộ...';
+    } else if (status === 'reconnecting') {
+      dot.style.background = '#F59E0B';
+      dot.style.boxShadow = '0 0 8px #F59E0B';
+      dot.classList.add('animate-pulse');
+      text.textContent = 'Đang kết nối lại...';
     } else if (status === 'error') {
       dot.style.background = '#EF4444';
       dot.style.boxShadow = '0 0 8px #EF4444';
@@ -105,6 +175,7 @@ const Sync = {
   // Xử lý response 401 - tự động đăng xuất
   handleUnauthorized() {
     this.stopPolling();
+    this.stopKeepAlive();
     sessionStorage.removeItem('hha_auth_token');
     Storage.clearSession();
     alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
@@ -118,9 +189,14 @@ const Sync = {
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(`${url}?action=read&sheet=Accounts`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
       if (response.status === 401) {
         return { success: false, error: 'Phiên đăng nhập không hợp lệ.' };
       }
@@ -132,7 +208,50 @@ const Sync = {
       }
       return { success: true };
     } catch (e) {
+      if (e.name === 'AbortError') {
+        return { success: false, error: 'Máy chủ không phản hồi (timeout).' };
+      }
       return { success: false, error: e.message || 'Lỗi mạng.' };
+    }
+  },
+
+  // Thử phục hồi kết nối trước khi hiển thị lỗi
+  async tryRecover() {
+    if (this.isRecovering) return false;
+    this.isRecovering = true;
+    this.updateStatusUI('reconnecting');
+
+    try {
+      // Bước 1: Kiểm tra server có sống không
+      const serverAlive = await this.pingServer();
+      if (!serverAlive) {
+        console.log('🔄 Server chưa phản hồi, đợi cold start...');
+        // Đợi 3 giây cho cold start
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const retryAlive = await this.pingServer();
+        if (!retryAlive) {
+          this.isRecovering = false;
+          return false;
+        }
+      }
+
+      // Bước 2: Kiểm tra session còn hợp lệ không
+      const sessionValid = await this.validateSession();
+      if (!sessionValid) {
+        console.log('🔑 Session không hợp lệ, chuyển đến trang đăng nhập...');
+        this.isRecovering = false;
+        this.handleUnauthorized();
+        return false;
+      }
+
+      // Session hợp lệ, server sống → kết nối lại thành công
+      console.log('✅ Phục hồi kết nối thành công!');
+      this.isRecovering = false;
+      return true;
+    } catch (e) {
+      console.error('🔄 Recovery failed:', e);
+      this.isRecovering = false;
+      return false;
     }
   },
 
@@ -151,16 +270,27 @@ const Sync = {
     }
 
     try {
+      // Thêm timeout cho fetch request (15 giây)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(`${url}?action=readAll`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 401) {
-        this.handleUnauthorized();
+        // Session hết hạn trên server → thử validate lại
+        const recovered = await this.tryRecover();
+        if (!recovered) return; // handleUnauthorized đã được gọi bên trong
+        // Nếu recover thành công, thử sync lại
+        this.isSyncing = false;
+        this.backgroundSync(isSilent);
         return;
       }
 
-      if (!response.ok) throw new Error('Network error');
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
       const result = await response.json();
       if (result.error) throw new Error(result.error);
@@ -199,20 +329,51 @@ const Sync = {
       }
 
       this.lastSyncTime = new Date().toISOString();
+      // Reset error counter on success
+      if (this.consecutiveErrors > 0) {
+        console.log('✅ Kết nối đã phục hồi sau', this.consecutiveErrors, 'lần lỗi');
+      }
       this.consecutiveErrors = 0;
       // Khôi phục polling interval về mặc định nếu đang backoff
       this.startPolling(this.DEFAULT_POLL_MS);
       this.updateStatusUI('synced');
     } catch (e) {
-      console.error('☁️ Sync error:', e);
       this.consecutiveErrors++;
-      // Hiển thị lỗi nếu: không phải silent mode, HOẶC lỗi liên tục >= 3 lần
-      if (!isSilent || this.consecutiveErrors >= 3) {
+
+      if (e.name === 'AbortError') {
+        console.warn('☁️ Sync timeout (server có thể đang khởi động lại)');
+      } else {
+        console.error('☁️ Sync error:', e.message);
+      }
+
+      // Hiển thị trạng thái phù hợp dựa trên số lần lỗi
+      if (this.consecutiveErrors < this.MAX_RETRY_BEFORE_ERROR) {
+        // Chưa đủ lỗi → hiện "Đang kết nối lại..." thay vì "Lỗi kết nối"
+        if (!isSilent || this.consecutiveErrors >= 2) {
+          this.updateStatusUI('reconnecting');
+        }
+      } else if (this.consecutiveErrors === this.MAX_RETRY_BEFORE_ERROR) {
+        // Đủ lỗi → thử phục hồi
+        console.log('🔄 Đã lỗi', this.consecutiveErrors, 'lần. Thử phục hồi kết nối...');
+        const recovered = await this.tryRecover();
+        if (recovered) {
+          this.consecutiveErrors = 0;
+          this.startPolling(this.DEFAULT_POLL_MS);
+          this.updateStatusUI('synced');
+          // Trigger lại sync
+          this.isSyncing = false;
+          this.backgroundSync(isSilent);
+          return;
+        } else {
+          this.updateStatusUI('error');
+        }
+      } else {
         this.updateStatusUI('error');
       }
-      // Exponential backoff: 10s → 20s → 40s (max 60s)
-      if (this.consecutiveErrors >= 3) {
-        const backoffMs = Math.min(this.DEFAULT_POLL_MS * Math.pow(2, this.consecutiveErrors - 2), 60000);
+
+      // Exponential backoff: 10s → 20s → 40s → max 60s
+      if (this.consecutiveErrors >= 2) {
+        const backoffMs = Math.min(this.DEFAULT_POLL_MS * Math.pow(2, this.consecutiveErrors - 1), 60000);
         console.log(`☁️ Backoff: ${backoffMs / 1000}s (lỗi liên tục ${this.consecutiveErrors} lần)`);
         this.startPolling(backoffMs);
       }
@@ -253,6 +414,9 @@ const Sync = {
     this.updateStatusUI('saving');
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: this.getAuthHeaders(),
@@ -260,8 +424,10 @@ const Sync = {
           action: 'sync',
           sheet: sheetName,
           rows: data
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 401) {
         this.handleUnauthorized();
@@ -283,6 +449,9 @@ const Sync = {
     this.updateStatusUI('saving');
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: this.getAuthHeaders(),
@@ -291,8 +460,10 @@ const Sync = {
           mutationType: mutationType,
           sheet: sheetName,
           item: item
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 401) {
         this.handleUnauthorized();
@@ -319,9 +490,14 @@ const Sync = {
 
     this.updateStatusUI('syncing');
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch(`${url}?action=readAll`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 401) {
         this.handleUnauthorized();
@@ -340,7 +516,11 @@ const Sync = {
       window.location.reload();
       return true;
     } catch (e) {
-      alert(`Lỗi khi tải dữ liệu: ${e.message}`);
+      if (e.name === 'AbortError') {
+        alert('Máy chủ không phản hồi. Vui lòng thử lại sau.');
+      } else {
+        alert(`Lỗi khi tải dữ liệu: ${e.message}`);
+      }
       this.updateStatusUI('error');
       return false;
     }
@@ -389,11 +569,16 @@ const Sync = {
     };
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 401) {
         this.handleUnauthorized();
@@ -415,13 +600,16 @@ const Sync = {
 
     const formattedTime = this.lastSyncTime ? Utils.formatDateTime(this.lastSyncTime) : 'Chưa đồng bộ';
     const serverUrl = window.location.origin;
+    const errorCount = this.consecutiveErrors;
+    const statusColor = errorCount === 0 ? '#10B981' : errorCount < this.MAX_RETRY_BEFORE_ERROR ? '#F59E0B' : '#EF4444';
+    const statusText = errorCount === 0 ? 'Đang trực tuyến' : errorCount < this.MAX_RETRY_BEFORE_ERROR ? 'Đang kết nối lại...' : 'Mất kết nối';
 
     const modalHtml = `
       <div class="modal-overlay active" id="modal-sync-connection" style="z-index: 9999; display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
         <div class="modal animate-fadeInUp" style="max-width: 450px; background: var(--color-surface, #ffffff); border-radius: var(--radius-lg, 12px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); width: 90%; overflow: hidden; display: flex; flex-direction: column;">
           <div class="modal__header" style="border-bottom: 1px solid var(--color-divider, #e2e8f0); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
             <h3 class="modal__title" style="display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0; font-weight: 600; color: var(--color-text, #1e293b);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="${statusColor}" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               Thông tin kết nối hệ thống
             </h3>
             <button class="modal__close" onclick="document.getElementById('modal-sync-connection').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--color-text-muted, #64748b); line-height: 1;">&times;</button>
@@ -434,7 +622,7 @@ const Sync = {
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Đường truyền mạng:</span>
-                <strong style="color: #10B981;">Đang trực tuyến</strong>
+                <strong style="color: ${statusColor};">${statusText}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
                 <span style="color: var(--color-text-secondary, #475569);">Tần suất tự động đồng bộ:</span>
@@ -444,6 +632,10 @@ const Sync = {
                 <span style="color: var(--color-text-secondary, #475569);">Đồng bộ lần cuối:</span>
                 <strong style="color: var(--color-text, #1e293b);">${formattedTime}</strong>
               </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--color-divider, #cbd5e1); padding-bottom: 8px;">
+                <span style="color: var(--color-text-secondary, #475569);">Keep-alive:</span>
+                <strong style="color: #10B981;">🟢 Mỗi 4 phút</strong>
+              </div>
               <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
                 <span style="color: var(--color-text-secondary, #475569);">Xác thực:</span>
                 <strong style="color: #10B981;">🔒 Session Token (Bảo mật)</strong>
@@ -452,7 +644,7 @@ const Sync = {
           </div>
           <div class="modal__footer" style="border-top: 1px solid var(--color-divider, #e2e8f0); padding: 12px 20px; display: flex; justify-content: flex-end; gap: 10px; background: var(--color-surface-hover, #f8fafc);">
             <button class="btn btn-secondary" onclick="document.getElementById('modal-sync-connection').remove()" style="padding: 6px 12px; font-size: 13px;">Đóng</button>
-            <button class="btn btn-primary" onclick="document.getElementById('modal-sync-connection').remove(); Sync.backgroundSync(false);" style="padding: 6px 12px; font-size: 13px;">Đồng bộ ngay</button>
+            <button class="btn btn-primary" onclick="document.getElementById('modal-sync-connection').remove(); Sync.consecutiveErrors = 0; Sync.backgroundSync(false);" style="padding: 6px 12px; font-size: 13px;">Đồng bộ ngay</button>
           </div>
         </div>
       </div>

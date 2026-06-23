@@ -21,7 +21,7 @@ const BCRYPT_ROUNDS = 12;
 // IN-MEMORY SESSION STORE
 // ============================================
 const activeSessions = new Map();
-const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 phút
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 giờ (tránh mất session trên Render free tier)
 
 function createSessionToken() {
   return crypto.randomBytes(48).toString('hex');
@@ -1220,6 +1220,35 @@ app.get('/api/download/:id', checkAuth, async (req, res) => {
 });
 
 
+// GET /api/health - Health check / Keep-alive endpoint (KHÔNG cần auth)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    mongoConnected: isMongoConnected
+  });
+});
+
+// GET /api/validate-session - Kiểm tra session còn hợp lệ không
+app.get('/api/validate-session', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.json({ valid: false, reason: 'no_token' });
+  }
+  const token = authHeader.split(' ')[1];
+  const session = activeSessions.get(token);
+  if (!session) {
+    return res.json({ valid: false, reason: 'invalid_session' });
+  }
+  if (session.expiresAt < Date.now()) {
+    activeSessions.delete(token);
+    return res.json({ valid: false, reason: 'expired' });
+  }
+  // Gia hạn session
+  session.expiresAt = Date.now() + SESSION_DURATION_MS;
+  return res.json({ valid: true, session: { userId: session.userId, role: session.role } });
+});
 
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
